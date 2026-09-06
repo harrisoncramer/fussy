@@ -3,6 +3,7 @@ package unexported_test
 import (
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/harrisoncramer/fussy/unexported"
@@ -261,6 +262,44 @@ func TestKindsNarrowTheSweep(t *testing.T) {
 func TestTheSweepLoadsCleanly(t *testing.T) {
 	if errs := sweep(t).LoadErrors; len(errs) > 0 {
 		t.Fatalf("load errors: %v", errs)
+	}
+}
+
+// TestWorkspaceModulesAreAllSwept pins that a go.work root sweeps every module the workspace
+// names, including one that sits outside the workspace directory, since the go command refuses
+// ./... where the directory holds no module of its own and a module left out that way would be a
+// caller the sweep silently could not see.
+func TestWorkspaceModulesAreAllSwept(t *testing.T) {
+	result := run(t, unexported.Options{Dir: fixture(t, "workspace")})
+
+	if len(result.Modules) != 2 {
+		t.Fatalf("modules: got %v, want both workspace modules", result.Modules)
+	}
+
+	got := verdicts(t, result)
+	if got["fussytest/wsshared.NobodyInTheWorkspaceUses"] != unexported.VerdictDelete {
+		t.Errorf("NobodyInTheWorkspaceUses: got %q, want %q", got["fussytest/wsshared.NobodyInTheWorkspaceUses"], unexported.VerdictDelete)
+	}
+
+	if verdict, found := got["fussytest/wsshared.OnlyTheAppUses"]; found {
+		t.Errorf("OnlyTheAppUses is called from the other workspace module, so %q is wrong", verdict)
+	}
+}
+
+// TestASweepThatReadsNoFilesFails pins that a run resolving to no Go files is an error rather
+// than an empty report, since the go command answers a pattern it cannot resolve with a stand-in
+// package carrying the reason, and reporting no findings over that would be the confident empty
+// answer this tool exists to avoid giving.
+func TestASweepThatReadsNoFilesFails(t *testing.T) {
+	inside := filepath.Join(fixture(t, "workspace"), "notamodule")
+
+	result, err := unexported.Sweep(unexported.Options{Dir: inside})
+	if err == nil {
+		t.Fatalf("sweeping %s: got %d findings and no error, want an error", inside, len(result.Findings))
+	}
+
+	if !strings.Contains(err.Error(), "typechecked nothing") {
+		t.Errorf("error: got %q, want it to say the sweep typechecked nothing", err)
 	}
 }
 

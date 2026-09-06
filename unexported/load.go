@@ -50,8 +50,8 @@ func load(opts Options) (*loaded, error) {
 		return nil, fmt.Errorf("loading %s: %w", strings.Join(patterns, " "), err)
 	}
 
-	if len(pkgs) == 0 {
-		return nil, fmt.Errorf("%s matched no packages", strings.Join(patterns, " "))
+	if err := checkAnythingLoaded(pkgs, patterns); err != nil {
+		return nil, err
 	}
 
 	walked, err := discoverUnloaded(moduleDirs(pkgs, opts.Dir), pkgs)
@@ -68,6 +68,24 @@ func load(opts Options) (*loaded, error) {
 	result.unloadedNames = relativeAll(opts.Dir, unloaded)
 
 	return result, nil
+}
+
+// checkAnythingLoaded refuses a run that read no Go files at all, which is the confident empty
+// answer this tool exists to avoid giving, and asks after the files rather than the types because
+// the go command answers a pattern it cannot resolve with a stand-in package that carries the
+// reason, no files, and a types.Package hung off it all the same.
+func checkAnythingLoaded(pkgs []*packages.Package, patterns []string) error {
+	for _, p := range pkgs {
+		if len(p.GoFiles) > 0 || len(p.CompiledGoFiles) > 0 {
+			return nil
+		}
+	}
+
+	if reasons := loadErrors(pkgs); len(reasons) > 0 {
+		return fmt.Errorf("%s typechecked nothing: %s", strings.Join(patterns, " "), strings.Join(reasons, "; "))
+	}
+
+	return fmt.Errorf("%s matched no packages", strings.Join(patterns, " "))
 }
 
 // resolvePatterns expands ./... into one pattern per workspace module when the working directory
