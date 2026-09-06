@@ -1,0 +1,52 @@
+version: "2"
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+linters:
+  enable:
+    - agentslinter
+    - errorlint
+    - forcetypeassert
+    - gocritic
+    - unparam
+  settings:
+    errcheck:
+      check-blank: true
+    staticcheck:
+      checks:
+        - all
+    custom:
+      agentslinter:
+        type: module
+        description: The analyzers this module ships, run against the module itself.
+        settings:
+          comment_length:
+            skip: false
+          comment_prefix:
+            skip: false
+            require: true
+          forbid_getenv:
+            skip: false
+          forbid_nil_nil:
+            skip: false
+          # Nothing here reaches a server, so there is no path a background context is wrong in.
+          context_timeout:
+            skip: true
+  exclusions:
+    rules:
+      # The config package is where configuration is read from the environment, which is the
+      # thing forbidgetenv exists to funnel through it. It cannot follow its own advice.
+      - path: ^config/
+        linters:
+          - agentslinter
+        text: forbidgetenv
+      # A binary's package comment would be the first thing a reader of the command sees on
+      # pkg.go.dev, and this one exists to be run rather than to be read about.
+      - path: ^cmd/
+        linters:
+          - staticcheck
+        text: ST1000
+formatters:
+  enable:
+    - gofmt
+    - goimports
