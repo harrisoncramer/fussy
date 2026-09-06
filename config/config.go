@@ -8,6 +8,7 @@ type Config struct {
 	ContextTimeout ContextTimeoutConfig `json:"context_timeout"`
 	ForbidGetenv   ForbidGetenvConfig   `json:"forbid_getenv"`
 	ForbidNilNil   ForbidNilNilConfig   `json:"forbid_nil_nil"`
+	SwitchDefault  SwitchDefaultConfig  `json:"switch_default"`
 }
 
 type ContextTimeoutConfig struct {
@@ -31,4 +32,10 @@ type ForbidGetenvConfig struct {
 
 type ForbidNilNilConfig struct {
 	Skip bool `json:"skip"`
+}
+
+type SwitchDefaultConfig struct {
+	Skip               bool     `json:"skip"`
+	AllowSilentDefault bool     `json:"allow_silent_default"`
+	Exclude            []string `json:"exclude"`
 }
