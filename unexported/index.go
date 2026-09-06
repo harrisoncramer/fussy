@@ -156,13 +156,13 @@ func kindOf(obj types.Object) (string, bool) {
 
 	switch obj.(type) {
 	case *types.Func:
-		return KindFunc, true
+		return kindFunc, true
 	case *types.TypeName:
-		return KindType, true
+		return kindType, true
 	case *types.Var:
-		return KindVar, true
+		return kindVar, true
 	case *types.Const:
-		return KindConst, true
+		return kindConst, true
 	}
 
 	return "", false
@@ -172,14 +172,14 @@ func kindOf(obj types.Object) (string, bool) {
 // what separates a verdict the sweep can stand behind from one that only covers this repository.
 func reachOf(p *packages.Package) string {
 	if p.Name == "main" {
-		return ReachModulePrivate
+		return reachModulePrivate
 	}
 
 	if slices.Contains(strings.Split(p.PkgPath, "/"), "internal") {
-		return ReachModulePrivate
+		return reachModulePrivate
 	}
 
-	return ReachImportable
+	return reachImportable
 }
 
 func generatedFiles(p *packages.Package) map[string]bool {
