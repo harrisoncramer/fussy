@@ -482,6 +482,12 @@ func (idx *index) draw(alive, testAlive map[string]bool) (map[string]Verdict, ma
 // growRescued takes the declarations the guard just rescued as liveness seeds for the next pass,
 // which are the ones left holding neither a verdict nor any liveness of their own.
 func (idx *index) growRescued(rescued map[string]bool, verdicts map[string]Verdict, alive map[string]bool) bool {
+	// Explainer: returning false is what establishes the invariant the whole loop is for. It
+	// says no tracked declaration is left outside both sets, so by the time the loop breaks
+	// every one of them is either condemned or alive. The bug this replaced violated exactly
+	// that: a declaration the guard had rescued sat in neither, so it was not a finding and it
+	// carried no liveness onward, and everything it named stayed condemned. A change that lets
+	// a declaration end up in neither set again brings the same false delete back with it.
 	added := false
 	for key := range idx.decls {
 		if alive[key] || rescued[key] {
