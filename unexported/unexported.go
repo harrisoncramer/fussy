@@ -58,25 +58,25 @@ const (
 // Reaches say how far outside the sweep a package could have been imported from, which is what
 // decides whether a verdict on it is the whole answer or only the part this repository can see.
 const (
-	// ReachModulePrivate is a package nothing outside the module can import, which is an
+	// reachModulePrivate is a package nothing outside the module can import, which is an
 	// internal package or a main package, and where a verdict is complete.
-	ReachModulePrivate = "module-private"
-	// ReachImportable is a package another module could import, where the sweep has only
+	reachModulePrivate = "module-private"
+	// reachImportable is a package another module could import, where the sweep has only
 	// looked at this repository and a consumer elsewhere would not show up.
-	ReachImportable = "importable"
+	reachImportable = "importable"
 )
 
 // Kinds are the declarations a sweep can be pointed at, methods excluded.
 const (
-	KindFunc  = "func"
-	KindType  = "type"
-	KindVar   = "var"
-	KindConst = "const"
+	kindFunc  = "func"
+	kindType  = "type"
+	kindVar   = "var"
+	kindConst = "const"
 )
 
 // AllKinds is what a sweep covers when it is not narrowed.
 func AllKinds() []string {
-	return []string{KindFunc, KindType, KindVar, KindConst}
+	return []string{kindFunc, kindType, kindVar, kindConst}
 }
 
 // Options is what one sweep is pointed at.
@@ -98,10 +98,14 @@ type Finding struct {
 	Package string  `json:"package"`
 	Name    string  `json:"name"`
 	Kind    string  `json:"kind"`
-	Reach   string  `json:"reach"`
-	File    string  `json:"file"`
-	Line    int     `json:"line"`
-	Reason  string  `json:"reason"`
+	// Reach is how far outside the sweep the package could have been imported from, either
+	// "module-private" for a package nothing outside the module can import, where the verdict is
+	// complete, or "importable" for one another module could import, where the sweep has only
+	// looked at this repository.
+	Reach  string `json:"reach"`
+	File   string `json:"file"`
+	Line   int    `json:"line"`
+	Reason string `json:"reason"`
 }
 
 // Result is what one sweep found, beside the ground it could not cover.

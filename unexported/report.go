@@ -107,8 +107,8 @@ func note(finding Finding) string {
 		parts = append(parts, finding.Reason)
 	}
 
-	if finding.Reach == ReachImportable {
-		parts = append(parts, ReachImportable)
+	if finding.Reach == reachImportable {
+		parts = append(parts, reachImportable)
 	}
 
 	return strings.Join(parts, ", ")
@@ -163,7 +163,7 @@ func writeList(out *lines, items []string, noun, why string) {
 func (r *Result) countImportable() int {
 	count := 0
 	for _, finding := range r.Findings {
-		if finding.Reach == ReachImportable {
+		if finding.Reach == reachImportable {
 			count++
 		}
 	}

@@ -269,10 +269,10 @@ func TestGeneratedDeclarationsCanBeAskedFor(t *testing.T) {
 // TestKindsNarrowTheSweep pins that a run can be held to one sort of declaration, since the first
 // cut a repository wants is usually the functions alone.
 func TestKindsNarrowTheSweep(t *testing.T) {
-	result := run(t, unexported.Options{Dir: fixture(t, "verdicts"), Kinds: []string{unexported.KindFunc}})
+	result := run(t, unexported.Options{Dir: fixture(t, "verdicts"), Kinds: []string{"func"}})
 
 	for _, finding := range result.Findings {
-		if finding.Kind != unexported.KindFunc {
+		if finding.Kind != "func" {
 			t.Errorf("%s: got kind %q, want only funcs", finding, finding.Kind)
 		}
 	}
