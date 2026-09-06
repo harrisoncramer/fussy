@@ -29,6 +29,7 @@ type loaded struct {
 	dir           string
 	modules       []string
 	nested        []string
+	unreadable    []string
 	errors        []string
 	unloaded      []string
 	unloadedNames []string
@@ -53,13 +54,16 @@ func load(opts Options) (*loaded, error) {
 		return nil, fmt.Errorf("%s matched no packages", strings.Join(patterns, " "))
 	}
 
-	unloaded, nested, err := discoverUnloaded(moduleDirs(pkgs, opts.Dir), pkgs)
+	walked, err := discoverUnloaded(moduleDirs(pkgs, opts.Dir), pkgs)
 	if err != nil {
 		return nil, err
 	}
 
+	unloaded, nested := walked.files, walked.nested
+
 	result := &loaded{pkgs: pkgs, dir: opts.Dir, modules: mainModules(pkgs), errors: loadErrors(pkgs)}
 	result.nested = relativeAll(opts.Dir, nested)
+	result.unreadable = relativeAll(opts.Dir, walked.unreadable)
 	result.unloaded = unloaded
 	result.unloadedNames = relativeAll(opts.Dir, unloaded)
 
@@ -95,8 +99,12 @@ func resolvePatterns(opts Options) ([]string, error) {
 // the directory is not under one.
 func workspaceUses(dir string) ([]string, error) {
 	work, err := goEnv(dir, "GOWORK")
-	if err != nil || work == "" {
+	if err != nil || work == "" || work == "off" {
 		return nil, err
+	}
+
+	if filepath.Clean(dir) != filepath.Dir(filepath.Clean(work)) {
+		return nil, nil
 	}
 
 	cmd := exec.Command("go", "work", "edit", "-json")
@@ -119,7 +127,7 @@ func workspaceUses(dir string) ([]string, error) {
 	var patterns []string
 	for _, use := range parsed.Use {
 		rel, err := filepath.Rel(dir, filepath.Join(filepath.Dir(work), use.DiskPath))
-		if err != nil || strings.HasPrefix(rel, "..") {
+		if err != nil {
 			continue
 		}
 		patterns = append(patterns, "./"+filepath.ToSlash(rel)+"/...")
@@ -190,7 +198,7 @@ func loadErrors(pkgs []*packages.Package) []string {
 // a file behind a build tag, or inside a module nested under this one, stops being a caller the
 // sweep cannot see, and names the nested modules separately since those are a blind spot of a
 // different kind from a build tag.
-func discoverUnloaded(roots []string, pkgs []*packages.Package) (files, nested []string, err error) {
+func discoverUnloaded(roots []string, pkgs []*packages.Package) (*walked, error) {
 	known := map[string]bool{}
 	ignored := map[string]bool{}
 	for _, p := range pkgs {
@@ -216,26 +224,50 @@ func discoverUnloaded(roots []string, pkgs []*packages.Package) (files, nested [
 		rootSet[root] = true
 	}
 
-	nestedRoots := map[string]bool{}
+	seen := &walk{known: known, found: found, roots: rootSet, nested: map[string]bool{}, unreadable: map[string]bool{}}
 	for _, root := range roots {
-		if err := walkForGoFiles(root, rootSet, known, found, nestedRoots); err != nil {
-			return nil, nil, err
+		if err := seen.descend(root); err != nil {
+			return nil, err
 		}
 	}
 
-	return sortedKeys(found), sortedKeys(nestedRoots), nil
+	return &walked{
+		files:      sortedKeys(found),
+		nested:     sortedKeys(seen.nested),
+		unreadable: sortedKeys(seen.unreadable),
+	}, nil
 }
 
-// walkForGoFiles descends one module, skipping what the go tool skips, descending into a module
-// nested inside this one rather than past it since a caller there is a caller in another module,
-// and giving up only where the module root itself cannot be read, since then nothing under it
-// was checked at all.
-func walkForGoFiles(root string, roots, known, found, nested map[string]bool) error {
+// walked is what one pass over the module directories turned up, which is the files to read
+// beside the ground the pass could not cover.
+type walked struct {
+	files      []string
+	nested     []string
+	unreadable []string
+}
+
+// walk is the state one pass over the module directories keeps, which is what it has found and
+// what it could not read, since a directory the sweep skipped in silence is the blind spot the
+// report exists to disclose.
+type walk struct {
+	known      map[string]bool
+	found      map[string]bool
+	roots      map[string]bool
+	nested     map[string]bool
+	unreadable map[string]bool
+}
+
+// descend walks one module, skipping what the go tool skips, going into a module nested inside it
+// rather than past it since a caller there is a caller in another module, recording whatever it
+// cannot read, and giving up only where the module root itself will not open, since then nothing
+// under it was checked at all.
+func (w *walk) descend(root string) error {
 	return filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
 		if err != nil {
 			if path == root {
 				return fmt.Errorf("walking %s: %w", root, err)
 			}
+			w.unreadable[path] = true
 
 			return nil
 		}
@@ -244,25 +276,25 @@ func walkForGoFiles(root string, roots, known, found, nested map[string]bool) er
 			if path == root {
 				return nil
 			}
-			if skipDir(entry.Name()) {
+			if shouldSkipDir(entry.Name()) {
 				return filepath.SkipDir
 			}
-			if !roots[path] && isModuleRoot(path) {
-				nested[path] = true
+			if !w.roots[path] && isModuleRoot(path) {
+				w.nested[path] = true
 			}
 
 			return nil
 		}
 
-		if strings.HasSuffix(entry.Name(), ".go") && !known[path] {
-			found[path] = true
+		if strings.HasSuffix(entry.Name(), ".go") && !w.known[path] {
+			w.found[path] = true
 		}
 
 		return nil
 	})
 }
 
-func skipDir(name string) bool {
+func shouldSkipDir(name string) bool {
 	return strings.HasPrefix(name, ".") || strings.HasPrefix(name, "_") || skippedDirs[name]
 }
 

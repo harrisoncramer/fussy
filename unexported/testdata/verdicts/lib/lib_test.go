@@ -7,3 +7,9 @@ func TestTestOnly(t *testing.T) {
 		t.Fatal("expected a value")
 	}
 }
+
+func TestChain(t *testing.T) {
+	if TestChainHead() == "" {
+		t.Fatal("expected a value")
+	}
+}

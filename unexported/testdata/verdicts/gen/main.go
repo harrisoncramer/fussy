@@ -6,8 +6,9 @@ import (
 	"fmt"
 
 	"fussytest/verdicts/lib"
+	. "fussytest/verdicts/lib"
 )
 
 func main() {
-	fmt.Println(lib.ForGenerator())
+	fmt.Println(lib.ForGenerator(), DotImported())
 }

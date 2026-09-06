@@ -128,12 +128,17 @@ func (r *Result) writeSummary(out *lines) {
 		out.printf("%d exported identifiers are left alone because only an external test package uses them\n", r.KeptByExternalTest)
 	}
 
+	if r.KeptByForeignTest > 0 {
+		out.printf("%d exported identifiers are left alone because only a test in another package uses them\n", r.KeptByForeignTest)
+	}
+
 	if r.SkippedGenerated > 0 {
 		out.printf("%d exported identifiers declared in generated files were skipped\n", r.SkippedGenerated)
 	}
 
 	writeList(out, r.Nested, "module", "nested inside the sweep and not loaded, since ./... resolves to the module at the working directory, so a caller there was read syntactically")
 	writeList(out, r.Unloaded, "file", "no build configuration in this sweep compiled, read for uses syntactically rather than typechecked")
+	writeList(out, r.Unreadable, "directory", "could not be read, so a caller inside is missing from this report")
 	writeList(out, r.LoadErrors, "package", "did not typecheck, so uses inside them may be missing")
 }
 

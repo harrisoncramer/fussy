@@ -12,13 +12,24 @@ import (
 // useful if the set is exactly right rather than nearly right.
 func TestEveryVerdict(t *testing.T) {
 	want := map[string]unexported.Verdict{
-		"fussytest/verdicts/lib.ErrSentinel":  unexported.VerdictUnexport,
-		"fussytest/verdicts/lib.InternalOnly": unexported.VerdictUnexport,
-		"fussytest/verdicts/lib.Inner":        unexported.VerdictUnexport,
-		"fussytest/verdicts/lib.Level":        unexported.VerdictUnexport,
-		"fussytest/verdicts/lib.LevelLow":     unexported.VerdictUnexport,
-		"fussytest/verdicts/lib.Nobody":       unexported.VerdictDelete,
-		"fussytest/verdicts/lib.TestOnly":     unexported.VerdictDelete,
+		"fussytest/verdicts/lib.ErrSentinel":      unexported.VerdictUnexport,
+		"fussytest/verdicts/lib.InternalOnly":     unexported.VerdictUnexport,
+		"fussytest/verdicts/lib.Inner":            unexported.VerdictUnexport,
+		"fussytest/verdicts/lib.KeptByMixedBlock": unexported.VerdictUnexport,
+		"fussytest/verdicts/lib.KeptByUnexported": unexported.VerdictUnexport,
+		"fussytest/verdicts/lib.MixedExported":    unexported.VerdictDelete,
+		"fussytest/verdicts/lib.Level":            unexported.VerdictUnexport,
+		"fussytest/verdicts/lib.LevelLow":         unexported.VerdictUnexport,
+		"fussytest/verdicts/lib.DeadField":        unexported.VerdictDelete,
+		"fussytest/verdicts/lib.DeadHolder":       unexported.VerdictDelete,
+		"fussytest/verdicts/lib.DeadWithMethod":   unexported.VerdictDelete,
+		"fussytest/verdicts/lib.Nobody":           unexported.VerdictDelete,
+		"fussytest/verdicts/lib.PairA":            unexported.VerdictDelete,
+		"fussytest/verdicts/lib.PairB":            unexported.VerdictDelete,
+		"fussytest/verdicts/lib.Recursive":        unexported.VerdictDelete,
+		"fussytest/verdicts/lib.TestChainHead":    unexported.VerdictDelete,
+		"fussytest/verdicts/lib.TestChainTail":    unexported.VerdictDelete,
+		"fussytest/verdicts/lib.TestOnly":         unexported.VerdictDelete,
 	}
 
 	got := verdicts(t, sweep(t))
@@ -33,6 +44,79 @@ func TestEveryVerdict(t *testing.T) {
 		if _, expected := want[name]; !expected {
 			t.Errorf("%s: reported %q, expected no finding", name, verdict)
 		}
+	}
+}
+
+// TestCodeThatOnlyUsesItselfIsDead pins that a declaration reachable only from other dead
+// declarations is deleted rather than unexported, since a recursive function, a mutually
+// recursive pair, a field of a dead struct and a method on a dead type all mention what they are
+// part of and none of that is a package using it.
+func TestCodeThatOnlyUsesItselfIsDead(t *testing.T) {
+	got := verdicts(t, sweep(t))
+
+	for _, name := range []string{"Recursive", "PairA", "PairB", "DeadHolder", "DeadField", "DeadWithMethod"} {
+		if got["fussytest/verdicts/lib."+name] != unexported.VerdictDelete {
+			t.Errorf("%s: got %q, want %q", name, got["fussytest/verdicts/lib."+name], unexported.VerdictDelete)
+		}
+	}
+}
+
+// TestUsesFromUntrackedCodeKeepAThingAlive pins the other side of that, since a call from an
+// unexported function is a call the sweep can never prove dead and must not treat as one.
+func TestUsesFromUntrackedCodeKeepAThingAlive(t *testing.T) {
+	got := verdicts(t, sweep(t))
+
+	if got["fussytest/verdicts/lib.KeptByUnexported"] != unexported.VerdictUnexport {
+		t.Fatalf("KeptByUnexported: got %q, want %q", got["fussytest/verdicts/lib.KeptByUnexported"], unexported.VerdictUnexport)
+	}
+}
+
+// TestMixedDeclarationBlocksDoNotBorrowEachOthersCallers pins that a var block holding an
+// exported name beside an unexported one does not credit the unexported name's initialiser to the
+// exported one, since a dead export would otherwise take a live caller down with it.
+func TestMixedDeclarationBlocksDoNotBorrowEachOthersCallers(t *testing.T) {
+	got := verdicts(t, sweep(t))
+
+	if got["fussytest/verdicts/lib.KeptByMixedBlock"] != unexported.VerdictUnexport {
+		t.Fatalf("KeptByMixedBlock is called by an unexported var in a mixed block, got %q", got["fussytest/verdicts/lib.KeptByMixedBlock"])
+	}
+}
+
+// TestTestOnlyReachesThroughTheChain pins that something a test reaches only through another
+// test-only declaration is dead for the same reason the head of the chain is.
+func TestTestOnlyReachesThroughTheChain(t *testing.T) {
+	got := verdicts(t, sweep(t))
+
+	for _, name := range []string{"TestChainHead", "TestChainTail"} {
+		if got["fussytest/verdicts/lib."+name] != unexported.VerdictDelete {
+			t.Errorf("%s: got %q, want %q", name, got["fussytest/verdicts/lib."+name], unexported.VerdictDelete)
+		}
+	}
+}
+
+// TestDotImportsInUnloadedFilesAreCallers pins that a build-tagged file dot-importing a package
+// and calling a name bare counts as a caller, since the harvest is only ever allowed to suppress
+// a finding and inventing one here would break the generator it is advising you to delete.
+func TestDotImportsInUnloadedFilesAreCallers(t *testing.T) {
+	got := verdicts(t, sweep(t))
+
+	if verdict, found := got["fussytest/verdicts/lib.DotImported"]; found {
+		t.Fatalf("DotImported is called bare from a dot-importing generator, so %q is wrong", verdict)
+	}
+}
+
+// TestForeignTestsAreCountedRatherThanSilent pins that a symbol only another package's tests use
+// is surfaced, since it is dead product code held up by a test and the report said nothing about
+// that shape before.
+func TestForeignTestsAreCountedRatherThanSilent(t *testing.T) {
+	result := sweep(t)
+
+	if _, found := verdicts(t, result)["fussytest/verdicts/lib.CrossTest"]; found {
+		t.Error("CrossTest is called from another package's tests, so it must be left alone")
+	}
+
+	if result.KeptByForeignTest != 1 {
+		t.Errorf("kept by foreign test: got %d, want 1", result.KeptByForeignTest)
 	}
 }
 

@@ -20,7 +20,7 @@ func Public() Surface {
 		return Surface{Name: InternalOnly()}
 	}
 
-	return Surface{Name: inner.value}
+	return Surface{Name: inner.value + keeper()}
 }
 
 type Surface struct {
@@ -61,3 +61,42 @@ type SelfRef[T SelfRef[T]] interface {
 func UseSelfRef[T SelfRef[T]](value T) T { return value.Self() }
 
 func ForNested() string { return "nested" }
+
+func Recursive(n int) int {
+	if n <= 0 {
+		return 0
+	}
+
+	return Recursive(n - 1)
+}
+
+func PairA() int { return PairB() }
+
+func PairB() int { return PairA() }
+
+type DeadHolder struct {
+	Field DeadField
+}
+
+type DeadField struct{}
+
+type DeadWithMethod struct{}
+
+func (d DeadWithMethod) Describe() DeadWithMethod { return d }
+
+func KeptByUnexported() string { return "kept" }
+
+func keeper() string { return KeptByUnexported() }
+
+func TestChainHead() string { return TestChainTail() }
+
+func TestChainTail() string { return "tail" }
+
+func DotImported() string { return "dotted" }
+
+var (
+	MixedExported = "exported"
+	mixedInternal = KeptByMixedBlock()
+)
+
+func KeptByMixedBlock() string { return "mixed" }

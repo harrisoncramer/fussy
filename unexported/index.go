@@ -23,11 +23,16 @@ type declaration struct {
 	line    int
 }
 
-// siteSet is where an identifier is used from, which is the whole of what the verdict turns on.
+// siteSet is where an identifier is used from, with the internal flag covering only the uses no
+// tracked declaration encloses, which are the ones nothing in this sweep can ever call dead, such
+// as a call from an unexported function, an init, a generated file or a file behind a build tag,
+// since a same-package use written inside another tracked declaration is filed as an edge instead
+// so that a run of declarations only ever calling each other is not read as a package using them.
 type siteSet struct {
 	internal     bool
 	ownTest      bool
 	externalTest bool
+	foreignTest  bool
 	external     bool
 }
 
@@ -42,11 +47,28 @@ type index struct {
 	sites              map[string]*siteSet
 	exported           map[string][]types.Object
 	dirs               map[string]*packages.Package
+	names              map[string]string
+	edges              map[string]map[string]bool
 	keptByExternalTest int
+	keptByForeignTest  int
 	skippedGenerated   int
 }
 
+// extent is where one tracked declaration begins and ends so a use written inside it can be
+// attributed to it, with a method filed under its receiver type, since a type whose only mentions
+// are in its own methods is as dead as one nothing mentions at all.
+type extent struct {
+	start token.Pos
+	end   token.Pos
+	keys  []string
+}
+
 func newIndex(opts Options, loaded *loaded) *index {
+	names := map[string]string{}
+	for _, p := range loaded.pkgs {
+		names[p.PkgPath] = p.Name
+	}
+
 	return &index{
 		opts:     opts,
 		fset:     loaded.pkgs[0].Fset,
@@ -55,6 +77,8 @@ func newIndex(opts Options, loaded *loaded) *index {
 		sites:    map[string]*siteSet{},
 		exported: map[string][]types.Object{},
 		dirs:     map[string]*packages.Package{},
+		names:    names,
+		edges:    map[string]map[string]bool{},
 	}
 }
 
@@ -189,27 +213,45 @@ func (idx *index) readUses() {
 			continue
 		}
 
+		extents := idx.extentsOf(p)
 		for ident, obj := range p.TypesInfo.Uses {
-			idx.recordUse(p.Types.Path(), obj, ident.Pos())
+			idx.recordUse(p.Types.Path(), obj, ident.Pos(), enclosing(extents, ident.Pos()))
 		}
 	}
 }
 
-// recordUse files one use under the package path and name of what it points at, which is the
-// only key a declaration and a use of it reliably share.
-func (idx *index) recordUse(usingPath string, obj types.Object, pos token.Pos) {
+// recordUse files one use under the package path and name of what it points at, which is the only
+// key a declaration and a use of it reliably share, and files a same-package use written inside
+// another tracked declaration as an edge between the two instead.
+func (idx *index) recordUse(usingPath string, obj types.Object, pos token.Pos, from []string) {
 	if obj == nil || obj.Pkg() == nil || obj.Parent() != obj.Pkg().Scope() {
 		return
 	}
 
 	declPath := obj.Pkg().Path()
-	sites, ok := idx.sites[objectKey(declPath, obj.Name())]
+	key := objectKey(declPath, obj.Name())
+	sites, ok := idx.sites[key]
 	if !ok {
 		return
 	}
 
 	inTestFile := strings.HasSuffix(idx.fset.Position(pos).Filename, "_test.go")
+	if usingPath == declPath && !inTestFile && len(from) > 0 {
+		for _, source := range from {
+			idx.edge(source, key)
+		}
+
+		return
+	}
+
 	sites.add(usingPath, declPath, inTestFile)
+}
+
+func (idx *index) edge(from, to string) {
+	if idx.edges[from] == nil {
+		idx.edges[from] = map[string]bool{}
+	}
+	idx.edges[from][to] = true
 }
 
 // add files one use in the bucket its verdict turns on, which separates a package's own test
@@ -222,6 +264,8 @@ func (s *siteSet) add(usingPath, declPath string, inTestFile bool) {
 		s.internal = true
 	case usingPath == declPath+"_test":
 		s.externalTest = true
+	case inTestFile:
+		s.foreignTest = true
 	default:
 		s.external = true
 	}
@@ -244,12 +288,15 @@ func (idx *index) readUnloadedFiles(paths []string) {
 // direction of suppressing a finding rather than of inventing one.
 func (idx *index) readUnloadedFile(path string, file *ast.File) {
 	owner := idx.dirs[filepath.Dir(path)]
+	imports, dots := idx.importsOf(file)
 	scan := &textScan{
-		idx:     idx,
-		owner:   owner,
-		imports: idx.importsOf(file),
-		beside:  owner != nil && owner.Name == file.Name.Name,
-		inTest:  strings.HasSuffix(path, "_test.go"),
+		idx:         idx,
+		owner:       owner,
+		imports:     imports,
+		dots:        dots,
+		packageName: file.Name.Name,
+		beside:      owner != nil && owner.Name == file.Name.Name,
+		inTest:      strings.HasSuffix(path, "_test.go"),
 	}
 	ast.Inspect(file, scan.visit)
 }
@@ -257,11 +304,13 @@ func (idx *index) readUnloadedFile(path string, file *ast.File) {
 // textScan reads one untypechecked file for the identifiers it names, since a build tag hiding a
 // caller from the typechecker must not hide it from the sweep.
 type textScan struct {
-	idx     *index
-	owner   *packages.Package
-	imports map[string]string
-	beside  bool
-	inTest  bool
+	idx         *index
+	owner       *packages.Package
+	imports     map[string]string
+	dots        []string
+	packageName string
+	beside      bool
+	inTest      bool
 }
 
 // visit takes a qualified name as a use of the package it names, and a bare one as a use of the
@@ -271,7 +320,7 @@ func (t *textScan) visit(node ast.Node) bool {
 	case *ast.SelectorExpr:
 		if ident, ok := expr.X.(*ast.Ident); ok {
 			if imported, found := t.imports[ident.Name]; found {
-				t.idx.recordTextUse(imported, expr.Sel.Name, textUsePath(t.owner, imported), false)
+				t.idx.recordTextUse(imported, expr.Sel.Name, t.qualifiedUsePath(imported), false)
 				return false
 			}
 		}
@@ -282,16 +331,20 @@ func (t *textScan) visit(node ast.Node) bool {
 		if t.beside {
 			t.idx.recordTextUse(t.owner.PkgPath, expr.Name, t.owner.PkgPath, t.inTest)
 		}
+		for _, dotted := range t.dots {
+			t.idx.recordTextUse(dotted, expr.Name, "", false)
+		}
 	}
 
 	return true
 }
 
-// textUsePath decides which package a qualified reference in an untypechecked file counts as
-// coming from, which is the package's own directory for a build-tagged file sitting beside it
-// and somewhere else entirely otherwise.
-func textUsePath(owner *packages.Package, imported string) string {
-	if owner != nil && owner.PkgPath == imported {
+// qualifiedUsePath decides which package a qualified reference in an untypechecked file counts as
+// coming from, which is the package's own black-box test only where the file really declares that
+// test package, since a go:build ignore program sitting in the same directory is another package
+// entirely and counting it as a test would say the wrong thing in the summary.
+func (t *textScan) qualifiedUsePath(imported string) string {
+	if t.owner != nil && t.owner.PkgPath == imported && t.packageName == t.owner.Name+"_test" {
 		return imported + "_test"
 	}
 
@@ -304,44 +357,43 @@ func (idx *index) recordTextUse(declPath, name, usingPath string, inTestFile boo
 	}
 }
 
-// importsOf maps the name a file refers to each import by onto the path it stands for, taking
-// the name from the loaded package where there is one so a package named unlike its directory
-// still resolves.
-func (idx *index) importsOf(file *ast.File) map[string]string {
+// importsOf maps the name a file refers to each import by onto the path it stands for, taking the
+// name from the loaded package where there is one so a package named unlike its directory still
+// resolves, and gathers the dot imports separately since those put names in scope with nothing in
+// front of them.
+func (idx *index) importsOf(file *ast.File) (map[string]string, []string) {
 	imports := map[string]string{}
+	var dots []string
 	for _, spec := range file.Imports {
 		path := strings.Trim(spec.Path.Value, `"`)
-		name := ""
-		switch {
-		case spec.Name != nil:
+		name := idx.names[path]
+		if spec.Name != nil {
 			name = spec.Name.Name
-		case idx.packageName(path) != "":
-			name = idx.packageName(path)
-		default:
+		}
+		if name == "" {
 			name = path[strings.LastIndex(path, "/")+1:]
 		}
-		if name != "" && name != "_" && name != "." {
+		if name == "." {
+			dots = append(dots, path)
+			continue
+		}
+		if name != "" && name != "_" {
 			imports[name] = path
 		}
 	}
 
-	return imports
+	return imports, dots
 }
 
-func (idx *index) packageName(path string) string {
-	for _, p := range idx.pkgs {
-		if p.PkgPath == path {
-			return p.Name
-		}
-	}
-
-	return ""
-}
-
-// decide turns each declaration's use sites into the one thing a person should do about it.
+// decide turns each declaration's use sites into the one thing a person should do about it,
+// reading liveness through the edges rather than off a single flag so a run of declarations that
+// only ever mention each other is called dead rather than called used.
 func (idx *index) decide() []Finding {
 	verdicts := map[string]Verdict{}
 	reasons := map[string]string{}
+
+	alive := idx.reachable(keptAlive)
+	testAlive := idx.reachable(keptAliveByTests)
 
 	for key := range idx.decls {
 		sites := idx.sites[key]
@@ -349,10 +401,12 @@ func (idx *index) decide() []Finding {
 		case sites.external:
 		case sites.externalTest:
 			idx.keptByExternalTest++
-		case sites.internal:
+		case sites.foreignTest:
+			idx.keptByForeignTest++
+		case alive[key]:
 			verdicts[key] = VerdictUnexport
 			reasons[key] = "only its own package uses it"
-		case sites.ownTest:
+		case testAlive[key]:
 			verdicts[key] = VerdictDelete
 			reasons[key] = "only its own tests use it"
 		default:
@@ -392,6 +446,11 @@ func (idx *index) decide() []Finding {
 // keepTheExportedSurfaceWhole drops the verdict on anything the rest of the package's exported
 // surface still needs, since advice that breaks the surface is worse than no advice.
 func (idx *index) keepTheExportedSurfaceWhole(verdicts map[string]Verdict) {
+	// Explainer: the loop below is load-bearing rather than a convenience for cascades. A
+	// constant asks whether its type is condemned by reading the verdicts as they stand, so
+	// within one pass a constant visited before its type gets a stale answer. Running until
+	// nothing more is dropped is what settles that, and collapsing this to a single pass would
+	// quietly turn the members of a rescued enum back into findings.
 	for pkgPath, objects := range idx.exported {
 		for {
 			reachable := reachableFrom(idx.retained(pkgPath, objects, verdicts))

@@ -118,11 +118,17 @@ type Result struct {
 	// Nested are the modules rooted inside the ones swept, which ./... does not reach into and
 	// whose files were read syntactically instead.
 	Nested []string `json:"nested_modules"`
+	// Unreadable are the directories the walk could not open, whose files were never read at
+	// all and so could hold a caller nothing here accounts for.
+	Unreadable []string `json:"unreadable_dirs"`
 	// LoadErrors are the packages that did not typecheck, whose uses may be missing.
 	LoadErrors []string `json:"load_errors"`
 	// KeptByExternalTest counts the exports left alone because an external test package needs
 	// them, which is dead product code held up by a black-box test.
 	KeptByExternalTest int `json:"kept_by_external_test"`
+	// KeptByForeignTest counts the exports left alone because a test in another package needs
+	// them, which is the same shape one package further away.
+	KeptByForeignTest int `json:"kept_by_foreign_test"`
 	// SkippedGenerated counts the exports passed over because a generator wrote them.
 	SkippedGenerated int    `json:"skipped_generated"`
 	ElapsedMillis    int64  `json:"elapsed_ms"`
@@ -156,8 +162,10 @@ func Sweep(opts Options) (*Result, error) {
 		Modules:            loaded.modules,
 		Unloaded:           loaded.unloadedNames,
 		Nested:             loaded.nested,
+		Unreadable:         loaded.unreadable,
 		LoadErrors:         loaded.errors,
 		KeptByExternalTest: index.keptByExternalTest,
+		KeptByForeignTest:  index.keptByForeignTest,
 		SkippedGenerated:   index.skippedGenerated,
 		MethodsChecked:     false,
 	}
