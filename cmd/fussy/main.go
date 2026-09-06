@@ -12,7 +12,15 @@ import (
 	"golang.org/x/tools/go/analysis/multichecker"
 )
 
+// unexportedCommand is the one subcommand that cannot be an analyzer, since it has to see every
+// package of the module at once to answer whether anything else uses a symbol.
+const unexportedCommand = "unexported"
+
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == unexportedCommand {
+		os.Exit(runUnexported(os.Args[2:]))
+	}
+
 	cfg, err := config.LoadFromEnv()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "fussy:", err)
