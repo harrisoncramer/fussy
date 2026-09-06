@@ -320,3 +320,49 @@ func zeroBeforeMutation(k Kind, wanted bool) (Result, error) {
 		return Result{}, errUnknownKind
 	}
 }
+
+func brokeNestedSwitch(k Kind, other Kind) (string, error) {
+	switch k {
+	case KindRead:
+		return "read", nil
+	default:
+		switch other {
+		case KindWrite:
+			break
+		}
+
+		return "", errUnknownKind
+	}
+}
+
+func fellThroughNestedSwitch(k Kind, other Kind) (string, error) {
+	switch k {
+	case KindRead:
+		return "read", nil
+	default:
+		switch other {
+		case KindWrite:
+			fallthrough
+		case KindRead:
+			log.Print("nested")
+		}
+
+		return "", errUnknownKind
+	}
+}
+
+func continuedInsideOwnLoop(k Kind, names []string) (string, error) {
+	switch k {
+	case KindRead:
+		return "read", nil
+	default:
+		for _, name := range names {
+			switch name {
+			case "":
+				continue
+			}
+		}
+
+		return "", errUnknownKind
+	}
+}

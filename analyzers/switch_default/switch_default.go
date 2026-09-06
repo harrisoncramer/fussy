@@ -300,17 +300,20 @@ func scanClause(pass *analysis.Pass, clause *ast.CaseClause, signature *types.Si
 		zeroes:  map[*types.Var]bool{},
 		labels:  clauseLabels(clause),
 	}
-	found.walkList(pass, clause.Body, clause, namedResults(signature), false)
+	found.walkList(pass, clause.Body, clause, namedResults(signature), clauseReach{})
 
 	return found
 }
 
-// clauseLabels gathers the labels the clause declares before the walk starts, since a break or a
-// goto can name one the walk has not reached yet.
+// clauseLabels gathers the labels the clause declares before the walk starts, leaving a closure's
+// own labels out the way the walk does, since a break or a goto can name one it has not reached.
 func clauseLabels(clause *ast.CaseClause) map[string]bool {
 	labels := map[string]bool{}
 	for _, stmt := range clause.Body {
 		ast.Inspect(stmt, func(node ast.Node) bool {
+			if _, ok := node.(*ast.FuncLit); ok {
+				return false
+			}
 			if labeled, ok := node.(*ast.LabeledStmt); ok {
 				labels[labeled.Label.Name] = true
 			}
@@ -340,9 +343,17 @@ func (s *clauseScan) quiet() bool {
 	return len(s.escapes) == 0 && len(s.assigns) == 0
 }
 
+// clauseReach is where an unlabelled branch lands from the statement being walked, which each
+// kind of branch answers differently since a nested switch catches a break but not a continue.
+type clauseReach struct {
+	breakable   bool
+	continuable bool
+	fallsLocal  bool
+}
+
 // walk descends the statements of the clause in the order they are written, leaving the
 // expressions alone, so a closure inside it is answered by the walk that closure gets of its own.
-func (s *clauseScan) walk(pass *analysis.Pass, stmt ast.Stmt, clause *ast.CaseClause, named map[*types.Var]bool, breakable bool) {
+func (s *clauseScan) walk(pass *analysis.Pass, stmt ast.Stmt, clause *ast.CaseClause, named map[*types.Var]bool, reach clauseReach) {
 	switch node := stmt.(type) {
 	case nil:
 		return
@@ -353,7 +364,7 @@ func (s *clauseScan) walk(pass *analysis.Pass, stmt ast.Stmt, clause *ast.CaseCl
 			zeroes:  maps.Clone(s.zeroes),
 		})
 	case *ast.BranchStmt:
-		s.branch(node, breakable)
+		s.branch(node, reach)
 	case *ast.AssignStmt:
 		s.assign(pass, node, clause, named)
 	case *ast.IncDecStmt:
@@ -361,58 +372,74 @@ func (s *clauseScan) walk(pass *analysis.Pass, stmt ast.Stmt, clause *ast.CaseCl
 	case *ast.DeclStmt:
 		s.declare(pass, node)
 	case *ast.BlockStmt:
-		s.walkList(pass, node.List, clause, named, breakable)
+		s.walkList(pass, node.List, clause, named, reach)
 	case *ast.LabeledStmt:
-		s.walk(pass, node.Stmt, clause, named, breakable)
+		s.walk(pass, node.Stmt, clause, named, reach)
 	case *ast.IfStmt:
-		s.walk(pass, node.Init, clause, named, breakable)
-		s.walk(pass, node.Body, clause, named, breakable)
-		s.walk(pass, node.Else, clause, named, breakable)
+		s.walk(pass, node.Init, clause, named, reach)
+		s.walk(pass, node.Body, clause, named, reach)
+		s.walk(pass, node.Else, clause, named, reach)
 	case *ast.ForStmt:
-		s.walk(pass, node.Init, clause, named, breakable)
-		s.walk(pass, node.Post, clause, named, breakable)
-		s.walk(pass, node.Body, clause, named, true)
+		s.walk(pass, node.Init, clause, named, reach)
+		s.walk(pass, node.Post, clause, named, reach)
+		s.walk(pass, node.Body, clause, named, clauseReach{breakable: true, continuable: true})
 	case *ast.RangeStmt:
 		s.rangeTargets(pass, node, clause)
-		s.walk(pass, node.Body, clause, named, true)
+		s.walk(pass, node.Body, clause, named, clauseReach{breakable: true, continuable: true})
 	case *ast.SwitchStmt:
-		s.walk(pass, node.Init, clause, named, breakable)
-		s.walkList(pass, node.Body.List, clause, named, true)
+		s.walk(pass, node.Init, clause, named, reach)
+		s.walkList(pass, node.Body.List, clause, named, reach.caught(true))
 	case *ast.TypeSwitchStmt:
-		s.walk(pass, node.Init, clause, named, breakable)
-		s.walkList(pass, node.Body.List, clause, named, true)
+		s.walk(pass, node.Init, clause, named, reach)
+		s.walkList(pass, node.Body.List, clause, named, reach.caught(false))
 	case *ast.SelectStmt:
-		s.walkList(pass, node.Body.List, clause, named, true)
+		s.walkList(pass, node.Body.List, clause, named, reach.caught(false))
 	case *ast.CaseClause:
-		s.walkList(pass, node.Body, clause, named, breakable)
+		s.walkList(pass, node.Body, clause, named, reach)
 	case *ast.CommClause:
-		s.walkList(pass, node.Body, clause, named, breakable)
+		s.walkList(pass, node.Body, clause, named, reach)
 	}
 }
 
-func (s *clauseScan) walkList(pass *analysis.Pass, list []ast.Stmt, clause *ast.CaseClause, named map[*types.Var]bool, breakable bool) {
+// caught is the reach inside a nested switch or select, which takes the break written there and
+// leaves the continue to whichever loop the clause itself declares.
+func (reach clauseReach) caught(falls bool) clauseReach {
+	return clauseReach{breakable: true, continuable: reach.continuable, fallsLocal: falls}
+}
+
+func (s *clauseScan) walkList(pass *analysis.Pass, list []ast.Stmt, clause *ast.CaseClause, named map[*types.Var]bool, reach clauseReach) {
 	for _, stmt := range list {
-		s.walk(pass, stmt, clause, named, breakable)
+		s.walk(pass, stmt, clause, named, reach)
 	}
 }
 
-// branch keeps the branch landing inside the clause, which is the break of a loop written there
-// and any branch naming a label the clause declares, rather than past the switch.
-func (s *clauseScan) branch(node *ast.BranchStmt, breakable bool) {
-	if node.Label == nil {
-		if breakable {
-			return
-		}
-		s.escapes = append(s.escapes, node)
-
-		return
-	}
-
-	if s.labels[node.Label.Name] {
+// branch reports the branch that leaves the clause, which is every one the constructs written
+// inside it do not catch.
+func (s *clauseScan) branch(node *ast.BranchStmt, reach clauseReach) {
+	if s.lands(node, reach) {
 		return
 	}
 
 	s.escapes = append(s.escapes, node)
+}
+
+// lands reports whether a branch stays in the clause, asking the reach of the kind of branch it
+// is, since a label the clause declares and a construct written in it both keep one at home.
+func (s *clauseScan) lands(node *ast.BranchStmt, reach clauseReach) bool {
+	if node.Label != nil {
+		return s.labels[node.Label.Name]
+	}
+
+	switch node.Tok {
+	case token.BREAK:
+		return reach.breakable
+	case token.CONTINUE:
+		return reach.continuable
+	case token.FALLTHROUGH:
+		return reach.fallsLocal
+	}
+
+	return false
 }
 
 func (s *clauseScan) assign(pass *analysis.Pass, node *ast.AssignStmt, clause *ast.CaseClause, named map[*types.Var]bool) {

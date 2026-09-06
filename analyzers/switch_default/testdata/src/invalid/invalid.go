@@ -153,6 +153,44 @@ outer:
 	return count
 }
 
+func skippedFromNestedSwitch(kinds []Kind, other Kind) (int, error) {
+	count := 0
+	for _, k := range kinds {
+		switch k {
+		case KindRead:
+			count++
+		default:
+			switch other {
+			case KindWrite:
+				continue // want `must not leave the switch`
+			}
+
+			return 0, errUnknownKind
+		}
+	}
+
+	return count, nil
+}
+
+func skippedFromNestedSelect(kinds []Kind, ready chan struct{}) (int, error) {
+	count := 0
+	for _, k := range kinds {
+		switch k {
+		case KindRead:
+			count++
+		default:
+			select {
+			case <-ready:
+				continue // want `must not leave the switch`
+			}
+
+			return 0, errUnknownKind
+		}
+	}
+
+	return count, nil
+}
+
 func empty(k Kind) error {
 	switch k {
 	case KindRead:
