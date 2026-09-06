@@ -276,3 +276,47 @@ func localCounters(k Kind, names []string) (string, error) {
 		return "", errUnknownKind
 	}
 }
+
+func labelledLoop(k Kind, names []string) (string, error) {
+	switch k {
+	case KindRead:
+		return "read", nil
+	default:
+	inner:
+		for _, name := range names {
+			if name != "" {
+				break inner
+			}
+		}
+
+		return "", errUnknownKind
+	}
+}
+
+func labelledJump(k Kind) (string, error) {
+	switch k {
+	case KindRead:
+		return "read", nil
+	default:
+		goto done
+	done:
+
+		return "", errUnknownKind
+	}
+}
+
+func zeroBeforeMutation(k Kind, wanted bool) (Result, error) {
+	switch k {
+	case KindRead:
+		return Result{Name: "read"}, nil
+	default:
+		var zero Result
+		if wanted {
+			return zero, errUnknownKind
+		}
+		zero.Name = "guess"
+		_ = zero
+
+		return Result{}, errUnknownKind
+	}
+}

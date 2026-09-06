@@ -79,10 +79,9 @@ func checkFile(pass *analysis.Pass, file *ast.File, allowSilent bool) {
 		switch fn := node.(type) {
 		case *ast.FuncDecl:
 			signature := signatureOf(pass, fn.Name)
-			if isStringer(fn, signature) {
-				return false
+			if !isStringer(fn, signature) {
+				checkBody(pass, signature, fn.Body, allowSilent)
 			}
-			checkBody(pass, signature, fn.Body, allowSilent)
 		case *ast.FuncLit:
 			checkBody(pass, signatureOf(pass, fn), fn.Body, allowSilent)
 		}
@@ -92,7 +91,8 @@ func checkFile(pass *analysis.Pass, file *ast.File, allowSilent bool) {
 }
 
 // isStringer reports whether a declaration is the fmt.Stringer method, whose default clause is
-// there to name a value it does not know rather than to answer for one.
+// there to name a value it does not know rather than to answer for one, and whose exemption
+// covers its own returns rather than a closure that happens to be written inside it.
 func isStringer(fn *ast.FuncDecl, signature *types.Signature) bool {
 	if fn.Recv == nil || fn.Name.Name != "String" || signature == nil {
 		return false
@@ -169,7 +169,7 @@ func checkClause(pass *analysis.Pass, signature *types.Signature, clause *ast.Ca
 	}
 
 	for _, point := range found.returns {
-		checkReturn(pass, signature, point, found.zeroes)
+		checkReturn(pass, signature, point)
 	}
 
 	if found.quiet() && !terminates(clause.Body[len(clause.Body)-1]) {
@@ -190,7 +190,7 @@ func reportSilent(pass *analysis.Pass, signature *types.Signature, clause *ast.C
 
 // checkReturn measures one return against the failure channel the signature offers, which is a
 // trailing error, else a trailing boolean beside a value, else nothing but the zero values.
-func checkReturn(pass *analysis.Pass, signature *types.Signature, point returnPoint, zeroes map[*types.Var]bool) {
+func checkReturn(pass *analysis.Pass, signature *types.Signature, point returnPoint) {
 	results := signature.Results()
 	values, ok := returnedValues(point, results)
 	if !ok {
@@ -208,7 +208,7 @@ func checkReturn(pass *analysis.Pass, signature *types.Signature, point returnPo
 		if value == nil || i == failure {
 			continue
 		}
-		if !isZero(pass, value, zeroes) {
+		if !isZero(pass, value, point.zeroes) {
 			pass.Report(analysis.Diagnostic{Pos: value.Pos(), End: value.End(), Message: message})
 		}
 	}
@@ -223,7 +223,7 @@ func checkReturn(pass *analysis.Pass, signature *types.Signature, point returnPo
 		if value == nil || isNil(pass, value) {
 			pass.Report(analysis.Diagnostic{Pos: point.stmt.Pos(), End: point.stmt.End(), Message: messageNilErr})
 		}
-	case value != nil && !isZero(pass, value, zeroes):
+	case value != nil && !isZero(pass, value, point.zeroes):
 		pass.Report(analysis.Diagnostic{Pos: value.Pos(), End: value.End(), Message: messageOkFlag})
 	}
 }
@@ -276,11 +276,12 @@ func failureIndex(results *types.Tuple) int {
 	return -1
 }
 
-// returnPoint is one return of the clause beside the named results as they stood where it sits,
-// so a later assignment cannot answer for an earlier return.
+// returnPoint is one return of the clause beside the state of the clause where it sits, so a
+// later assignment cannot answer for an earlier return.
 type returnPoint struct {
 	stmt    *ast.ReturnStmt
 	results map[*types.Var]ast.Expr
+	zeroes  map[*types.Var]bool
 }
 
 // clauseScan is what the clause hands to the code around it, gathered in one walk.
@@ -290,13 +291,35 @@ type clauseScan struct {
 	assigns []ast.Stmt
 	results map[*types.Var]ast.Expr
 	zeroes  map[*types.Var]bool
+	labels  map[string]bool
 }
 
 func scanClause(pass *analysis.Pass, clause *ast.CaseClause, signature *types.Signature) *clauseScan {
-	found := &clauseScan{results: map[*types.Var]ast.Expr{}, zeroes: map[*types.Var]bool{}}
+	found := &clauseScan{
+		results: map[*types.Var]ast.Expr{},
+		zeroes:  map[*types.Var]bool{},
+		labels:  clauseLabels(clause),
+	}
 	found.walkList(pass, clause.Body, clause, namedResults(signature), false)
 
 	return found
+}
+
+// clauseLabels gathers the labels the clause declares before the walk starts, since a break or a
+// goto can name one the walk has not reached yet.
+func clauseLabels(clause *ast.CaseClause) map[string]bool {
+	labels := map[string]bool{}
+	for _, stmt := range clause.Body {
+		ast.Inspect(stmt, func(node ast.Node) bool {
+			if labeled, ok := node.(*ast.LabeledStmt); ok {
+				labels[labeled.Label.Name] = true
+			}
+
+			return true
+		})
+	}
+
+	return labels
 }
 
 func namedResults(signature *types.Signature) map[*types.Var]bool {
@@ -324,7 +347,11 @@ func (s *clauseScan) walk(pass *analysis.Pass, stmt ast.Stmt, clause *ast.CaseCl
 	case nil:
 		return
 	case *ast.ReturnStmt:
-		s.returns = append(s.returns, returnPoint{stmt: node, results: maps.Clone(s.results)})
+		s.returns = append(s.returns, returnPoint{
+			stmt:    node,
+			results: maps.Clone(s.results),
+			zeroes:  maps.Clone(s.zeroes),
+		})
 	case *ast.BranchStmt:
 		s.branch(node, breakable)
 	case *ast.AssignStmt:
@@ -369,10 +396,19 @@ func (s *clauseScan) walkList(pass *analysis.Pass, list []ast.Stmt, clause *ast.
 	}
 }
 
-// branch keeps the break of a loop written inside the clause, since that one lands in the clause
-// rather than past the switch.
+// branch keeps the branch landing inside the clause, which is the break of a loop written there
+// and any branch naming a label the clause declares, rather than past the switch.
 func (s *clauseScan) branch(node *ast.BranchStmt, breakable bool) {
-	if node.Label == nil && breakable {
+	if node.Label == nil {
+		if breakable {
+			return
+		}
+		s.escapes = append(s.escapes, node)
+
+		return
+	}
+
+	if s.labels[node.Label.Name] {
 		return
 	}
 

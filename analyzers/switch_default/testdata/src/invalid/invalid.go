@@ -138,20 +138,19 @@ func fellThrough(k Kind) (string, error) {
 	}
 }
 
-func brokeOut(k Kind, names []string) (string, error) {
-	switch k {
-	case KindRead:
-		return "read", nil
-	default:
-	names:
-		for _, name := range names {
-			if name != "" {
-				break names // want `must not leave the switch`
-			}
+func brokeOutward(kinds []Kind) int {
+	count := 0
+outer:
+	for _, k := range kinds {
+		switch k {
+		case KindRead:
+			count++
+		default:
+			break outer // want `must not leave the switch`
 		}
-
-		return "", errUnknownKind
 	}
+
+	return count
 }
 
 func empty(k Kind) error {
@@ -259,4 +258,18 @@ func rangeHeader(k Kind, names []string) (string, error) {
 
 		return "", errUnknownKind
 	}
+}
+
+func (k Kind) String() string {
+	render := func(k Kind) (string, error) {
+		switch k {
+		case KindRead:
+			return "read", nil
+		default:
+			return "guess", nil // want `zero values beside its error` `non-nil error`
+		}
+	}
+	label, _ := render(k)
+
+	return label
 }
