@@ -368,9 +368,12 @@ func relativeAll(dir string, paths []string) []string {
 	return out
 }
 
+// relative writes a path the way the rest of the report writes one, which is from the working
+// directory, keeping the ../ form for a workspace module sitting outside it rather than falling
+// back to an absolute path and leaving one column holding two kinds of thing.
 func relative(dir, path string) string {
 	rel, err := filepath.Rel(dir, path)
-	if err != nil || strings.HasPrefix(rel, "..") {
+	if err != nil {
 		return path
 	}
 
