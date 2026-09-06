@@ -98,10 +98,14 @@ type Finding struct {
 	Package string  `json:"package"`
 	Name    string  `json:"name"`
 	Kind    string  `json:"kind"`
-	Reach   string  `json:"reach"`
-	File    string  `json:"file"`
-	Line    int     `json:"line"`
-	Reason  string  `json:"reason"`
+	// Reach is how far outside the sweep the package could have been imported from, either
+	// "module-private" for a package nothing outside the module can import, where the verdict is
+	// complete, or "importable" for one another module could import, where the sweep has only
+	// looked at this repository.
+	Reach  string `json:"reach"`
+	File   string `json:"file"`
+	Line   int    `json:"line"`
+	Reason string `json:"reason"`
 }
 
 // Result is what one sweep found, beside the ground it could not cover.
