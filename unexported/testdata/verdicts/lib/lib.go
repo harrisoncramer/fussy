@@ -100,3 +100,16 @@ var (
 )
 
 func KeptByMixedBlock() string { return "mixed" }
+
+type Tier int
+
+type Grade Tier
+
+type Badge struct{ N int }
+
+func (g Grade) badge() Badge { return Badge{N: int(g)} }
+
+const (
+	GradeLow Grade = iota
+	GradeHigh
+)

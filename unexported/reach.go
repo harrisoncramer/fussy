@@ -138,16 +138,27 @@ func enclosing(extents []extent, pos token.Pos) []string {
 
 // reachable spreads liveness out from the declarations something outside the sweep's own
 // candidates keeps alive, which is what separates a declaration its package really uses from a
-// run of dead declarations that only ever mention each other.
-func (idx *index) reachable(seeded func(*siteSet) bool) map[string]bool {
+// run of dead declarations that only ever mention each other, and takes the declarations the
+// exported-surface guard has rescued as seeds of their own alongside them.
+func (idx *index) reachable(seeded func(*siteSet) bool, rescued map[string]bool) map[string]bool {
 	alive := map[string]bool{}
 
 	var queue []string
-	for key, sites := range idx.sites {
-		if seeded(sites) {
+	add := func(key string) {
+		if !alive[key] {
 			alive[key] = true
 			queue = append(queue, key)
 		}
+	}
+
+	for key, sites := range idx.sites {
+		if seeded(sites) {
+			add(key)
+		}
+	}
+
+	for key := range rescued {
+		add(key)
 	}
 
 	for len(queue) > 0 {

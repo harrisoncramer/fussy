@@ -29,6 +29,7 @@ type loaded struct {
 	dir           string
 	modules       []string
 	nested        []string
+	declined      []string
 	unreadable    []string
 	errors        []string
 	unloaded      []string
@@ -38,10 +39,12 @@ type loaded struct {
 // load resolves the patterns into packages, with the tests included so a call from a test is
 // visible as a call from a test rather than not at all.
 func load(opts Options) (*loaded, error) {
-	patterns, err := resolvePatterns(opts)
+	workDir, workspaceDirs, err := workspaceModules(opts.Dir)
 	if err != nil {
 		return nil, err
 	}
+
+	patterns := resolvePatterns(opts, workDir, workspaceDirs)
 
 	cfg := &packages.Config{Mode: loadMode, Dir: opts.Dir, Tests: true}
 
@@ -62,6 +65,7 @@ func load(opts Options) (*loaded, error) {
 	unloaded, nested := walked.files, walked.nested
 
 	result := &loaded{pkgs: pkgs, dir: opts.Dir, modules: mainModules(pkgs), errors: loadErrors(pkgs)}
+	result.declined = relativeAll(opts.Dir, declinedModules(workspaceDirs, pkgs))
 	result.nested = relativeAll(opts.Dir, nested)
 	result.unreadable = relativeAll(opts.Dir, walked.unreadable)
 	result.unloaded = unloaded
@@ -89,40 +93,53 @@ func checkAnythingLoaded(pkgs []*packages.Package, patterns []string) error {
 }
 
 // resolvePatterns expands ./... into one pattern per workspace module when the working directory
-// is a go.work root, since the go command refuses ./... where the directory holds no module of
-// its own and a monorepo is exactly that shape.
-func resolvePatterns(opts Options) ([]string, error) {
+// is the go.work root, whether or not that root holds a module of its own, since the go command
+// refuses ./... where it holds none and sweeping only the root where it holds one would call a
+// sibling module's caller no caller at all.
+func resolvePatterns(opts Options, workDir string, workspaceDirs []string) []string {
 	patterns := opts.Patterns
 	if len(patterns) == 0 {
 		patterns = []string{"./..."}
 	}
 
 	if len(patterns) != 1 || patterns[0] != "./..." {
-		return patterns, nil
+		return patterns
 	}
 
-	if _, err := os.Stat(filepath.Join(opts.Dir, "go.mod")); err == nil {
-		return patterns, nil
+	if len(workspaceDirs) == 0 || filepath.Clean(opts.Dir) != workDir {
+		return patterns
 	}
 
-	uses, err := workspaceUses(opts.Dir)
-	if err != nil || len(uses) == 0 {
-		return patterns, err
+	expanded := make([]string, 0, len(workspaceDirs))
+	for _, moduleDir := range workspaceDirs {
+		rel, err := filepath.Rel(opts.Dir, moduleDir)
+		if err != nil {
+			continue
+		}
+		expanded = append(expanded, patternFor(rel))
 	}
 
-	return uses, nil
+	if len(expanded) == 0 {
+		return patterns
+	}
+
+	return expanded
 }
 
-// workspaceUses reads the module directories a go.work names, and returns nothing at all when
-// the directory is not under one.
-func workspaceUses(dir string) ([]string, error) {
-	work, err := goEnv(dir, "GOWORK")
-	if err != nil || work == "" || work == "off" {
-		return nil, err
+func patternFor(rel string) string {
+	if rel == "." {
+		return "./..."
 	}
 
-	if filepath.Clean(dir) != filepath.Dir(filepath.Clean(work)) {
-		return nil, nil
+	return "./" + filepath.ToSlash(rel) + "/..."
+}
+
+// workspaceModules names the directory of every module a go.work in force lists, beside the
+// directory the go.work itself sits in, and nothing at all where no workspace is in force.
+func workspaceModules(dir string) (workDir string, dirs []string, err error) {
+	work, err := goEnv(dir, "GOWORK")
+	if err != nil || work == "" || work == "off" {
+		return "", nil, err
 	}
 
 	cmd := exec.Command("go", "work", "edit", "-json")
@@ -130,7 +147,7 @@ func workspaceUses(dir string) ([]string, error) {
 
 	out, err := cmd.Output()
 	if err != nil {
-		return nil, fmt.Errorf("reading %s: %w", work, err)
+		return "", nil, fmt.Errorf("reading %s: %w", work, err)
 	}
 
 	var parsed struct {
@@ -139,21 +156,41 @@ func workspaceUses(dir string) ([]string, error) {
 		}
 	}
 	if err := json.Unmarshal(out, &parsed); err != nil {
-		return nil, fmt.Errorf("parsing %s: %w", work, err)
+		return "", nil, fmt.Errorf("parsing %s: %w", work, err)
 	}
 
-	var patterns []string
+	workDir = filepath.Dir(filepath.Clean(work))
 	for _, use := range parsed.Use {
-		rel, err := filepath.Rel(dir, filepath.Join(filepath.Dir(work), use.DiskPath))
-		if err != nil {
-			continue
-		}
-		patterns = append(patterns, "./"+filepath.ToSlash(rel)+"/...")
+		dirs = append(dirs, filepath.Clean(filepath.Join(workDir, use.DiskPath)))
+	}
+	sort.Strings(dirs)
+
+	return workDir, dirs, nil
+}
+
+// declinedModules names the workspace modules the sweep did not load, since a caller in one of
+// those is a caller the report cannot see and saying nothing about it is how a live export gets
+// called dead.
+func declinedModules(workspaceDirs []string, pkgs []*packages.Package) []string {
+	if len(workspaceDirs) == 0 {
+		return nil
 	}
 
-	sort.Strings(patterns)
+	loadedDirs := map[string]bool{}
+	for _, p := range pkgs {
+		if p.Module != nil && p.Module.Main && p.Module.Dir != "" {
+			loadedDirs[filepath.Clean(p.Module.Dir)] = true
+		}
+	}
 
-	return patterns, nil
+	var declined []string
+	for _, dir := range workspaceDirs {
+		if !loadedDirs[dir] {
+			declined = append(declined, dir)
+		}
+	}
+
+	return declined
 }
 
 func goEnv(dir, name string) (string, error) {

@@ -13,6 +13,7 @@ import (
 // useful if the set is exactly right rather than nearly right.
 func TestEveryVerdict(t *testing.T) {
 	want := map[string]unexported.Verdict{
+		"fussytest/verdicts/lib.Badge":            unexported.VerdictUnexport,
 		"fussytest/verdicts/lib.ErrSentinel":      unexported.VerdictUnexport,
 		"fussytest/verdicts/lib.InternalOnly":     unexported.VerdictUnexport,
 		"fussytest/verdicts/lib.Inner":            unexported.VerdictUnexport,
@@ -31,6 +32,7 @@ func TestEveryVerdict(t *testing.T) {
 		"fussytest/verdicts/lib.TestChainHead":    unexported.VerdictDelete,
 		"fussytest/verdicts/lib.TestChainTail":    unexported.VerdictDelete,
 		"fussytest/verdicts/lib.TestOnly":         unexported.VerdictDelete,
+		"fussytest/verdicts/lib.Tier":             unexported.VerdictUnexport,
 	}
 
 	got := verdicts(t, sweep(t))
@@ -59,6 +61,25 @@ func TestCodeThatOnlyUsesItselfIsDead(t *testing.T) {
 		if got["fussytest/verdicts/lib."+name] != unexported.VerdictDelete {
 			t.Errorf("%s: got %q, want %q", name, got["fussytest/verdicts/lib."+name], unexported.VerdictDelete)
 		}
+	}
+}
+
+// TestWhatTheSurfaceGuardRescuesIsAlive pins that a declaration kept because the package still
+// shows it to a caller carries its own references with it, since the guard rescues by taking a
+// verdict away and a rescue stopping there would condemn everything that declaration names, which
+// is advice that does not compile.
+func TestWhatTheSurfaceGuardRescuesIsAlive(t *testing.T) {
+	got := verdicts(t, sweep(t))
+
+	for _, name := range []string{"Tier", "Badge"} {
+		if got["fussytest/verdicts/lib."+name] != unexported.VerdictUnexport {
+			t.Errorf("%s is reached only through a type the surface guard rescued, got %q, want %q",
+				name, got["fussytest/verdicts/lib."+name], unexported.VerdictUnexport)
+		}
+	}
+
+	if verdict, found := got["fussytest/verdicts/lib.Grade"]; found {
+		t.Errorf("Grade is the type of an exported constant, so %q is wrong", verdict)
 	}
 }
 
@@ -272,8 +293,8 @@ func TestTheSweepLoadsCleanly(t *testing.T) {
 func TestWorkspaceModulesAreAllSwept(t *testing.T) {
 	result := run(t, unexported.Options{Dir: fixture(t, "workspace")})
 
-	if len(result.Modules) != 2 {
-		t.Fatalf("modules: got %v, want both workspace modules", result.Modules)
+	if len(result.Modules) != 3 {
+		t.Fatalf("modules: got %v, want every workspace module", result.Modules)
 	}
 
 	got := verdicts(t, result)
@@ -284,12 +305,28 @@ func TestWorkspaceModulesAreAllSwept(t *testing.T) {
 	if verdict, found := got["fussytest/wsshared.OnlyTheAppUses"]; found {
 		t.Errorf("OnlyTheAppUses is called from the other workspace module, so %q is wrong", verdict)
 	}
+
+	if verdict, found := got["fussytest/wsroot/lib.UsedOnlyByTheAppModule"]; found {
+		t.Errorf("the workspace root holds a module of its own whose export a sibling calls, so %q is wrong", verdict)
+	}
+}
+
+// TestWorkspaceModulesTheSweepDeclinedAreNamed pins that a run from inside one workspace module
+// says which of the others it did not open, since a caller in one of those is a caller this
+// report cannot see and silence there is how a live export gets called dead.
+func TestWorkspaceModulesTheSweepDeclinedAreNamed(t *testing.T) {
+	inside := filepath.Join(fixture(t, "workspace"), "app")
+
+	result := run(t, unexported.Options{Dir: inside})
+
+	if len(result.Declined) == 0 {
+		t.Fatal("a sweep inside one workspace module must name the modules it declined to load")
+	}
 }
 
 // TestASweepThatReadsNoFilesFails pins that a run resolving to no Go files is an error rather
-// than an empty report, since the go command answers a pattern it cannot resolve with a stand-in
-// package carrying the reason, and reporting no findings over that would be the confident empty
-// answer this tool exists to avoid giving.
+// than an empty report, since reporting no findings over ground nothing was read from is the
+// confident empty answer this tool exists to avoid giving.
 func TestASweepThatReadsNoFilesFails(t *testing.T) {
 	inside := filepath.Join(fixture(t, "workspace"), "notamodule")
 
@@ -298,8 +335,8 @@ func TestASweepThatReadsNoFilesFails(t *testing.T) {
 		t.Fatalf("sweeping %s: got %d findings and no error, want an error", inside, len(result.Findings))
 	}
 
-	if !strings.Contains(err.Error(), "typechecked nothing") {
-		t.Errorf("error: got %q, want it to say the sweep typechecked nothing", err)
+	if !strings.Contains(err.Error(), "./...") {
+		t.Errorf("error: got %q, want it to name the pattern that resolved to nothing", err)
 	}
 }
 

@@ -389,33 +389,30 @@ func (idx *index) importsOf(file *ast.File) (map[string]string, []string) {
 // reading liveness through the edges rather than off a single flag so a run of declarations that
 // only ever mention each other is called dead rather than called used.
 func (idx *index) decide() []Finding {
-	verdicts := map[string]Verdict{}
-	reasons := map[string]string{}
+	// Explainer: the liveness and the exported-surface guard have to settle together rather
+	// than run in sequence. The guard rescues a declaration by taking its verdict away, which
+	// leaves it holding no verdict and no liveness, so on its own it is a dead end: the
+	// declarations it names go on being condemned even though something the package still
+	// shows a caller reaches them. Feeding each rescue back in as a liveness seed and drawing
+	// the verdicts again is what closes that. Both halves only move one way, the guard removing
+	// verdicts and the spread adding liveness, so the pair converges.
+	idx.countKept()
 
-	alive := idx.reachable(keptAlive)
-	testAlive := idx.reachable(keptAliveByTests)
+	testAlive := idx.reachable(keptAliveByTests, nil)
+	rescued := map[string]bool{}
 
-	for key := range idx.decls {
-		sites := idx.sites[key]
-		switch {
-		case sites.external:
-		case sites.externalTest:
-			idx.keptByExternalTest++
-		case sites.foreignTest:
-			idx.keptByForeignTest++
-		case alive[key]:
-			verdicts[key] = VerdictUnexport
-			reasons[key] = "only its own package uses it"
-		case testAlive[key]:
-			verdicts[key] = VerdictDelete
-			reasons[key] = "only its own tests use it"
-		default:
-			verdicts[key] = VerdictDelete
-			reasons[key] = "nothing uses it"
+	var verdicts map[string]Verdict
+	var reasons map[string]string
+
+	for {
+		alive := idx.reachable(keptAlive, rescued)
+		verdicts, reasons = idx.draw(alive, testAlive)
+		idx.keepTheExportedSurfaceWhole(verdicts)
+
+		if !idx.growRescued(rescued, verdicts, alive) {
+			break
 		}
 	}
-
-	idx.keepTheExportedSurfaceWhole(verdicts)
 
 	kinds := map[string]bool{}
 	for _, kind := range idx.opts.Kinds {
@@ -441,6 +438,63 @@ func (idx *index) decide() []Finding {
 	}
 
 	return findings
+}
+
+// countKept tallies the exports left alone because a test needs them, once rather than once per
+// pass, since what keeps a declaration is a fact about its use sites and never moves.
+func (idx *index) countKept() {
+	for key := range idx.decls {
+		sites := idx.sites[key]
+		switch {
+		case sites.external:
+		case sites.externalTest:
+			idx.keptByExternalTest++
+		case sites.foreignTest:
+			idx.keptByForeignTest++
+		}
+	}
+}
+
+// draw reads one settled liveness into a verdict per declaration.
+func (idx *index) draw(alive, testAlive map[string]bool) (map[string]Verdict, map[string]string) {
+	verdicts := map[string]Verdict{}
+	reasons := map[string]string{}
+
+	for key := range idx.decls {
+		sites := idx.sites[key]
+		switch {
+		case sites.external, sites.externalTest, sites.foreignTest:
+		case alive[key]:
+			verdicts[key] = VerdictUnexport
+			reasons[key] = "only its own package uses it"
+		case testAlive[key]:
+			verdicts[key] = VerdictDelete
+			reasons[key] = "only its own tests use it"
+		default:
+			verdicts[key] = VerdictDelete
+			reasons[key] = "nothing uses it"
+		}
+	}
+
+	return verdicts, reasons
+}
+
+// growRescued takes the declarations the guard just rescued as liveness seeds for the next pass,
+// which are the ones left holding neither a verdict nor any liveness of their own.
+func (idx *index) growRescued(rescued map[string]bool, verdicts map[string]Verdict, alive map[string]bool) bool {
+	added := false
+	for key := range idx.decls {
+		if alive[key] || rescued[key] {
+			continue
+		}
+		if _, condemned := verdicts[key]; condemned {
+			continue
+		}
+		rescued[key] = true
+		added = true
+	}
+
+	return added
 }
 
 // keepTheExportedSurfaceWhole drops the verdict on anything the rest of the package's exported

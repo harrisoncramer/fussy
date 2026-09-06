@@ -138,6 +138,7 @@ func (r *Result) writeSummary(out *lines) {
 
 	writeList(out, r.Nested, "module", "nested inside the sweep and not loaded, since ./... resolves to the module at the working directory, so a caller there was read syntactically")
 	writeList(out, r.Unloaded, "file", "no build configuration in this sweep compiled, read for uses syntactically rather than typechecked")
+	writeList(out, r.Declined, "module", "named by the go.work was not swept, so a caller inside is missing from this report")
 	writeList(out, r.Unreadable, "directory", "could not be read, so a caller inside is missing from this report")
 	writeList(out, r.LoadErrors, "package", "did not typecheck, so uses inside them may be missing")
 }

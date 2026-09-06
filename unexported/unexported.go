@@ -118,6 +118,9 @@ type Result struct {
 	// Nested are the modules rooted inside the ones swept, which ./... does not reach into and
 	// whose files were read syntactically instead.
 	Nested []string `json:"nested_modules"`
+	// Declined are the workspace modules the sweep did not load, which hold callers this report
+	// cannot see at all.
+	Declined []string `json:"declined_modules"`
 	// Unreadable are the directories the walk could not open, whose files were never read at
 	// all and so could hold a caller nothing here accounts for.
 	Unreadable []string `json:"unreadable_dirs"`
@@ -162,6 +165,7 @@ func Sweep(opts Options) (*Result, error) {
 		Modules:            loaded.modules,
 		Unloaded:           loaded.unloadedNames,
 		Nested:             loaded.nested,
+		Declined:           loaded.declined,
 		Unreadable:         loaded.unreadable,
 		LoadErrors:         loaded.errors,
 		KeptByExternalTest: index.keptByExternalTest,
