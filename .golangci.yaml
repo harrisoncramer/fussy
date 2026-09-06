@@ -29,6 +29,8 @@ linters:
             skip: false
           forbid_nil_nil:
             skip: false
+          switch_default:
+            skip: false
           # Nothing here reaches a server, so there is no path a background context is wrong in.
           context_timeout:
             skip: true

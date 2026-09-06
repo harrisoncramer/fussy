@@ -10,6 +10,7 @@ import (
 	contexttimeout "github.com/harrisoncramer/fussy/analyzers/context_timeout"
 	forbidgetenv "github.com/harrisoncramer/fussy/analyzers/forbidgetenv"
 	forbidnilnil "github.com/harrisoncramer/fussy/analyzers/forbidnilnil"
+	switchdefault "github.com/harrisoncramer/fussy/analyzers/switch_default"
 	"github.com/harrisoncramer/fussy/config"
 
 	"golang.org/x/tools/go/analysis"
@@ -37,6 +38,10 @@ func BuildAll(cfg config.Config) []*analysis.Analyzer {
 
 	if !cfg.ForbidNilNil.Skip {
 		built = append(built, forbidnilnil.NewAnalyzer(cfg.ForbidNilNil))
+	}
+
+	if !cfg.SwitchDefault.Skip {
+		built = append(built, switchdefault.NewAnalyzer(cfg.SwitchDefault))
 	}
 
 	for _, a := range built {

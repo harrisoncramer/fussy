@@ -16,7 +16,7 @@ func LoadFromEnv() (Config, error) {
 	return Load(os.Getenv(EnvVar))
 }
 
-// Default is the configuration a run with no config file uses, which holds to the three rules
+// Default is the configuration a run with no config file uses, which holds to the four rules
 // that say something about any Go package and leaves off the two that assume a repository's
 // own shape.
 func Default() Config {
