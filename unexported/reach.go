@@ -11,6 +11,13 @@ import (
 // extentsOf lists where each of a package's tracked declarations begins and ends, in the order a
 // search can walk, so a use can be attributed to whichever declaration it was written inside.
 func (idx *index) extentsOf(p *packages.Package) []extent {
+	// Explainer: this has to be built per package variant, inside the loop that reads the uses,
+	// and must not be hoisted into a cache keyed by package path. The variant compiled with a
+	// package's test files re-parses its non-test files, which gives them a second range in the
+	// FileSet and so a second set of positions. Extents and positions agree only while they come
+	// from the same parse, so a cache shared between the two variants would quietly stop every
+	// use in a package that has tests from finding the declaration it was written inside.
+
 	var extents []extent
 	for _, file := range p.Syntax {
 		for _, decl := range file.Decls {
