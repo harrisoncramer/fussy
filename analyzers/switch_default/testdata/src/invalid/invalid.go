@@ -54,15 +54,6 @@ func answered(k Kind) error {
 	}
 }
 
-func pointed(k Kind) (*Result, error) {
-	switch k {
-	case KindRead:
-		return &Result{}, nil
-	default:
-		return &Result{}, errUnknownKind // want `zero values beside its error`
-	}
-}
-
 func claimed(k Kind) (Result, bool) {
 	switch k {
 	case KindRead:

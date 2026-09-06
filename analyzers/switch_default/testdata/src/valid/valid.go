@@ -366,3 +366,32 @@ func continuedInsideOwnLoop(k Kind, names []string) (string, error) {
 		return "", errUnknownKind
 	}
 }
+
+var sentinelResult Result
+
+func sentinelBesideError(k Kind) (Result, error) {
+	switch k {
+	case KindRead:
+		return Result{Name: "read"}, nil
+	default:
+		return sentinelResult, errUnknownKind
+	}
+}
+
+func pointedBesideError(k Kind) (*Result, error) {
+	switch k {
+	case KindRead:
+		return &Result{}, nil
+	default:
+		return &Result{Name: "unknown"}, errUnknownKind
+	}
+}
+
+func namedBesideFalse(k Kind) (Kind, bool) {
+	switch k {
+	case KindRead:
+		return KindRead, true
+	default:
+		return KindWrite, false
+	}
+}

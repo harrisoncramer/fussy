@@ -8,6 +8,10 @@
 // flow that lands past the switch. A log line, a metric, a deferred call and a channel send are
 // none of those, so none of them are reported.
 //
+// A clause whose failure the caller cannot miss is finished there, and the values beside that
+// failure are left alone. A caller checking the error never reads them, and holding them to the
+// zero value only reports the author who returned a sentinel of their own beside a real error.
+//
 // Two shapes are left alone on purpose. A String method of one string result is the
 // canonical enum switch, and the label it builds for a value it does not know is the point of
 // the method rather than a wrong answer, so a method matching the fmt.Stringer contract is
@@ -199,6 +203,10 @@ func checkReturn(pass *analysis.Pass, signature *types.Signature, point returnPo
 	}
 
 	failure := failureIndex(results)
+	if failure >= 0 && signalsFailure(pass, results, point, values[failure], failure) {
+		return
+	}
+
 	message := messageValue
 	if failure < 0 {
 		message = messageOnlyZero
@@ -212,20 +220,29 @@ func checkReturn(pass *analysis.Pass, signature *types.Signature, point returnPo
 			pass.Report(analysis.Diagnostic{Pos: value.Pos(), End: value.End(), Message: message})
 		}
 	}
+}
 
-	if failure < 0 {
-		return
-	}
-
-	value := values[failure]
-	switch {
-	case isError(results.At(failure).Type()):
+// signalsFailure reports whether the result a caller reads to learn the value was not handled
+// says so, and reports the diagnostic where it does not, since a caller reading a failure it
+// cannot miss never reads the values beside it.
+func signalsFailure(pass *analysis.Pass, results *types.Tuple, point returnPoint, value ast.Expr, failure int) bool {
+	if isError(results.At(failure).Type()) {
 		if value == nil || isNil(pass, value) {
 			pass.Report(analysis.Diagnostic{Pos: point.stmt.Pos(), End: point.stmt.End(), Message: messageNilErr})
+
+			return false
 		}
-	case value != nil && !isZero(pass, value, point.zeroes):
-		pass.Report(analysis.Diagnostic{Pos: value.Pos(), End: value.End(), Message: messageOkFlag})
+
+		return true
 	}
+
+	if value != nil && !isZero(pass, value, point.zeroes) {
+		pass.Report(analysis.Diagnostic{Pos: value.Pos(), End: value.End(), Message: messageOkFlag})
+
+		return false
+	}
+
+	return true
 }
 
 // checkOpaqueReturn covers a return handing every result to one call, which is worth trusting
