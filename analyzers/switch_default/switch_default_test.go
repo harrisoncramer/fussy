@@ -25,8 +25,15 @@ func TestAnsweringDefaultsAreReported(t *testing.T) {
 	analysistest.Run(t, testdata, analyzer, "invalid")
 }
 
+// TestEnumsFromAnotherPackageAreInScope pins that a switch over an imported enum is checked,
+// since a generated proto enum is the one an author is least likely to have read.
+func TestEnumsFromAnotherPackageAreInScope(t *testing.T) {
+	analyzer := switchdefault.NewAnalyzer(config.SwitchDefaultConfig{})
+	analysistest.Run(t, testdata, analyzer, "imported")
+}
+
 // TestAllowSilentDefaultKeepsTheValueChecks pins that letting a default say nothing is not a way
-// to let it answer, since the returns are still measured.
+// to let it answer, since the returns, the assignments and the escapes are still measured.
 func TestAllowSilentDefaultKeepsTheValueChecks(t *testing.T) {
 	analyzer := switchdefault.NewAnalyzer(config.SwitchDefaultConfig{AllowSilentDefault: true})
 	analysistest.Run(t, testdata, analyzer, "silent")

@@ -173,3 +173,106 @@ func closureInside(k Kind) (string, error) {
 		return "", errUnknownKind
 	}
 }
+
+type Node interface {
+	node()
+}
+
+type Leaf struct{}
+
+func (Leaf) node() {}
+
+type MyErr struct {
+	Kind Kind
+}
+
+func (e *MyErr) Error() string {
+	return "unknown kind"
+}
+
+func (k Kind) String() string {
+	switch k {
+	case KindRead:
+		return "read"
+	case KindWrite:
+		return "write"
+	default:
+		return fmt.Sprintf("Kind(%d)", int(k))
+	}
+}
+
+func sealed(n Node) (string, error) {
+	switch n.(type) {
+	case Leaf:
+		return "leaf", nil
+	default:
+		return "", errUnknownKind
+	}
+}
+
+func openWorld(value any) string {
+	switch value.(type) {
+	case string:
+		return "string"
+	default:
+		return "something else"
+	}
+}
+
+func concrete(k Kind) (string, *MyErr) {
+	switch k {
+	case KindRead:
+		return "read", nil
+	default:
+		return "", &MyErr{Kind: k}
+	}
+}
+
+func declaredZero(k Kind) (Result, error) {
+	switch k {
+	case KindRead:
+		return Result{Name: "read"}, nil
+	default:
+		var zero Result
+
+		return zero, errUnknownKind
+	}
+}
+
+func nestedSwitch(k Kind, other Kind) (string, error) {
+	switch k {
+	case KindRead:
+		return "read", nil
+	default:
+		switch other {
+		case KindWrite:
+			return "", errUnknownKind
+		default:
+			return "", errUnknownKind
+		}
+	}
+}
+
+func reported(k Kind) {
+	switch k {
+	case KindRead:
+		log.Print("read")
+	default:
+		log.Print("unhandled kind")
+	}
+}
+
+func localCounters(k Kind, names []string) (string, error) {
+	switch k {
+	case KindRead:
+		return "read", nil
+	default:
+		seen := 0
+		for i := 0; i < len(names); i++ {
+			seen++
+		}
+		_ = seen
+
+		return "", errUnknownKind
+	}
+}

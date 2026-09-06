@@ -65,3 +65,17 @@ func stillErroring(k Kind) error {
 		return errUnknownKind
 	}
 }
+
+func stillEscaping(kinds []Kind) int {
+	count := 0
+	for _, k := range kinds {
+		switch k {
+		case KindRead:
+			count++
+		default:
+			continue // want `must not leave the switch`
+		}
+	}
+
+	return count
+}
