@@ -1,4 +1,4 @@
-module github.com/harrisoncramer/agentslinter
+module github.com/harrisoncramer/fussy
 
 go 1.25.1
 

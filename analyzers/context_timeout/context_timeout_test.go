@@ -3,8 +3,8 @@ package contexttimeout_test
 import (
 	"testing"
 
-	contexttimeout "github.com/harrisoncramer/agentslinter/analyzers/context_timeout"
-	"github.com/harrisoncramer/agentslinter/config"
+	contexttimeout "github.com/harrisoncramer/fussy/analyzers/context_timeout"
+	"github.com/harrisoncramer/fussy/config"
 
 	"golang.org/x/tools/go/analysis/analysistest"
 )

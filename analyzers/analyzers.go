@@ -5,12 +5,12 @@ package analyzers
 import (
 	"go/ast"
 
-	commentlength "github.com/harrisoncramer/agentslinter/analyzers/comment_length"
-	commentprefix "github.com/harrisoncramer/agentslinter/analyzers/comment_prefix"
-	contexttimeout "github.com/harrisoncramer/agentslinter/analyzers/context_timeout"
-	forbidgetenv "github.com/harrisoncramer/agentslinter/analyzers/forbidgetenv"
-	forbidnilnil "github.com/harrisoncramer/agentslinter/analyzers/forbidnilnil"
-	"github.com/harrisoncramer/agentslinter/config"
+	commentlength "github.com/harrisoncramer/fussy/analyzers/comment_length"
+	commentprefix "github.com/harrisoncramer/fussy/analyzers/comment_prefix"
+	contexttimeout "github.com/harrisoncramer/fussy/analyzers/context_timeout"
+	forbidgetenv "github.com/harrisoncramer/fussy/analyzers/forbidgetenv"
+	forbidnilnil "github.com/harrisoncramer/fussy/analyzers/forbidnilnil"
+	"github.com/harrisoncramer/fussy/config"
 
 	"golang.org/x/tools/go/analysis"
 )

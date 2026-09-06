@@ -10,7 +10,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/harrisoncramer/agentslinter/config"
+	"github.com/harrisoncramer/fussy/config"
 
 	"golang.org/x/tools/go/analysis"
 )

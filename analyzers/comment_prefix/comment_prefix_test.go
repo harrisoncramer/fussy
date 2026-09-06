@@ -3,8 +3,8 @@ package commentprefix_test
 import (
 	"testing"
 
-	commentprefix "github.com/harrisoncramer/agentslinter/analyzers/comment_prefix"
-	"github.com/harrisoncramer/agentslinter/config"
+	commentprefix "github.com/harrisoncramer/fussy/analyzers/comment_prefix"
+	"github.com/harrisoncramer/fussy/config"
 
 	"golang.org/x/tools/go/analysis/analysistest"
 )

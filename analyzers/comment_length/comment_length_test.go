@@ -3,8 +3,8 @@ package commentlength_test
 import (
 	"testing"
 
-	commentlength "github.com/harrisoncramer/agentslinter/analyzers/comment_length"
-	"github.com/harrisoncramer/agentslinter/config"
+	commentlength "github.com/harrisoncramer/fussy/analyzers/comment_length"
+	"github.com/harrisoncramer/fussy/config"
 
 	"golang.org/x/tools/go/analysis/analysistest"
 )

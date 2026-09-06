@@ -8,7 +8,7 @@ import (
 )
 
 // EnvVar names the environment variable holding the path to the configuration file.
-const EnvVar = "AGENTSLINT_CONFIG"
+const EnvVar = "FUSSY_CONFIG"
 
 // LoadFromEnv reads the configuration the environment points at, and returns Default when it
 // points at nothing.

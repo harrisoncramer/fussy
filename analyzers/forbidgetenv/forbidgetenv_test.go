@@ -3,8 +3,8 @@ package forbidgetenv_test
 import (
 	"testing"
 
-	"github.com/harrisoncramer/agentslinter/analyzers/forbidgetenv"
-	"github.com/harrisoncramer/agentslinter/config"
+	"github.com/harrisoncramer/fussy/analyzers/forbidgetenv"
+	"github.com/harrisoncramer/fussy/config"
 
 	"golang.org/x/tools/go/analysis/analysistest"
 )

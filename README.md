@@ -1,1 +1,1 @@
-# agentslinter
+# fussy

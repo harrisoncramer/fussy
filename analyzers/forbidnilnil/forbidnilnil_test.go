@@ -3,8 +3,8 @@ package forbidnilnil_test
 import (
 	"testing"
 
-	"github.com/harrisoncramer/agentslinter/analyzers/forbidnilnil"
-	"github.com/harrisoncramer/agentslinter/config"
+	"github.com/harrisoncramer/fussy/analyzers/forbidnilnil"
+	"github.com/harrisoncramer/fussy/config"
 
 	"golang.org/x/tools/go/analysis/analysistest"
 )

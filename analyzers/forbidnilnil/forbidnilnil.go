@@ -7,7 +7,7 @@ import (
 	"go/types"
 	"strings"
 
-	"github.com/harrisoncramer/agentslinter/config"
+	"github.com/harrisoncramer/fussy/config"
 
 	"golang.org/x/tools/go/analysis"
 )
