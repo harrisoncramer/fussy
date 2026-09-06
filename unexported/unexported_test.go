@@ -98,6 +98,21 @@ func TestSelfReferentialGenericsTerminate(t *testing.T) {
 	}
 }
 
+// TestNestedModulesAreReadRatherThanSkipped pins that a module rooted inside the one being swept
+// is not passed over in silence, since ./... never reaches into it and a caller there is a caller
+// in another module, which is the plainest reason an identifier has to stay exported.
+func TestNestedModulesAreReadRatherThanSkipped(t *testing.T) {
+	result := sweep(t)
+
+	if verdict, found := verdicts(t, result)["fussytest/verdicts/lib.ForNested"]; found {
+		t.Errorf("ForNested is called from a nested module, so %q is wrong", verdict)
+	}
+
+	if !slices.Contains(result.Nested, "nested") {
+		t.Errorf("nested modules: got %v, want the nested module named", result.Nested)
+	}
+}
+
 // TestTypesOnTheExportedSurfaceAreLeftAlone pins that a type an exported signature names is kept,
 // since unexporting it would leave an exported function returning something a caller outside the
 // package cannot write down.

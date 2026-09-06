@@ -59,3 +59,5 @@ type SelfRef[T SelfRef[T]] interface {
 }
 
 func UseSelfRef[T SelfRef[T]](value T) T { return value.Self() }
+
+func ForNested() string { return "nested" }

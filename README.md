@@ -17,6 +17,11 @@ it would turn a visibly unclaimed export into a package-private function no tool
 An identifier an external test package uses is left alone, since unexporting it would stop those
 tests compiling.
 
+A module rooted inside the one being swept is not swept with it, since `./...` resolves to the
+module at the working directory and a nested module has a build of its own. A caller there is a
+caller in another module, which is the plainest reason an identifier has to stay exported, so
+those files are read for the names they use and the module is named in the report.
+
 Methods are not reported yet, because unexporting one can break interface satisfaction silently
 and there is no implements check here to clear it. Files no build configuration compiled, such as
 a generator behind a go:build ignore tag, are read for the names they use and named in the report,

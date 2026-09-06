@@ -1,0 +1,11 @@
+package main
+
+import (
+	"fmt"
+
+	"fussytest/verdicts/lib"
+)
+
+func main() {
+	fmt.Println(lib.ForNested())
+}

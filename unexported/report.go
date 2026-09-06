@@ -132,6 +132,7 @@ func (r *Result) writeSummary(out *lines) {
 		out.printf("%d exported identifiers declared in generated files were skipped\n", r.SkippedGenerated)
 	}
 
+	writeList(out, r.Nested, "module", "nested inside the sweep and not loaded, since ./... resolves to the module at the working directory, so a caller there was read syntactically")
 	writeList(out, r.Unloaded, "file", "no build configuration in this sweep compiled, read for uses syntactically rather than typechecked")
 	writeList(out, r.LoadErrors, "package", "did not typecheck, so uses inside them may be missing")
 }

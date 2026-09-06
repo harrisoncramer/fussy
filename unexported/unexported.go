@@ -24,6 +24,12 @@
 // declaration made. Comparing pointers reports almost every export in the repository; comparing
 // strings reports what is actually there.
 //
+// A module nested inside the one being swept is not swept with it, since ./... resolves to the
+// module rooted at the working directory and a nested module has a build of its own. A caller
+// there is a caller in another module, which is the plainest reason an identifier has to stay
+// exported, so those files are read for the names they use and the module is named in the report
+// rather than passed over in silence.
+//
 // Two things are deliberately out of scope. Methods are not reported, because unexporting one
 // can break interface satisfaction silently, including for an interface declared in a module this
 // sweep never loads, and there is no implements check here to clear it. Identifiers a program
@@ -109,6 +115,9 @@ type Result struct {
 	// Unloaded are the files no build configuration in this sweep compiled, whose uses were
 	// read syntactically instead.
 	Unloaded []string `json:"unloaded_files"`
+	// Nested are the modules rooted inside the ones swept, which ./... does not reach into and
+	// whose files were read syntactically instead.
+	Nested []string `json:"nested_modules"`
 	// LoadErrors are the packages that did not typecheck, whose uses may be missing.
 	LoadErrors []string `json:"load_errors"`
 	// KeptByExternalTest counts the exports left alone because an external test package needs
@@ -146,6 +155,7 @@ func Sweep(opts Options) (*Result, error) {
 		Packages:           len(loaded.pkgs),
 		Modules:            loaded.modules,
 		Unloaded:           loaded.unloadedNames,
+		Nested:             loaded.nested,
 		LoadErrors:         loaded.errors,
 		KeptByExternalTest: index.keptByExternalTest,
 		SkippedGenerated:   index.skippedGenerated,
