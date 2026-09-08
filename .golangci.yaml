@@ -29,8 +29,17 @@ linters:
             skip: false
           forbid_nil_nil:
             skip: false
+          params_struct:
+            skip: false
           switch_default:
             skip: false
+          table_test:
+            skip: false
+          test_double:
+            skip: false
+          # Nothing here is a storage layer, so there is no path with verbs of its own to hold.
+          store_verb:
+            skip: true
           # Nothing here reaches a server, so there is no path a background context is wrong in.
           context_timeout:
             skip: true
