@@ -12,7 +12,7 @@ import (
 var testdata = analysistest.TestData()
 
 // TestInvalidParamsStructs pins that a struct named after the type built, and a parameter called
-// anything but p, are both found.
+// anything but params, are both found.
 func TestInvalidParamsStructs(t *testing.T) {
 	analyzer := paramsstruct.NewAnalyzer(config.ParamsStructConfig{})
 	analysistest.Run(t, testdata, analyzer, "invalid")
@@ -23,6 +23,20 @@ func TestInvalidParamsStructs(t *testing.T) {
 func TestValidParamsStructs(t *testing.T) {
 	analyzer := paramsstruct.NewAnalyzer(config.ParamsStructConfig{})
 	analysistest.Run(t, testdata, analyzer, "valid")
+}
+
+// TestTheParameterNameIsConfigurable pins that a repository can hold the parameter to a name of
+// its own rather than to params.
+func TestTheParameterNameIsConfigurable(t *testing.T) {
+	analyzer := paramsstruct.NewAnalyzer(config.ParamsStructConfig{ParameterName: "p"})
+	analysistest.Run(t, testdata, analyzer, "renamed")
+}
+
+// TestAllowedStructsKeepTheirOwnName pins that the allow list frees a struct from the function
+// name without freeing it from the parameter name.
+func TestAllowedStructsKeepTheirOwnName(t *testing.T) {
+	analyzer := paramsstruct.NewAnalyzer(config.ParamsStructConfig{Allow: []string{"scriptEnvParams", "resumeParams"}})
+	analysistest.Run(t, testdata, analyzer, "allowed")
 }
 
 // TestExcludedFilesAreLeftAlone pins that the rule can be pointed away from a path.
