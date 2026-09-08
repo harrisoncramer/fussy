@@ -22,13 +22,22 @@ either side is renamed and nothing fails when it does.
 `contexttimeout` asks the paths it is pointed at to bound the contexts they start.
 
 `paramsstruct` holds a params struct to the name of the function that takes it, and holds the
-parameter itself to `p`. `NewMailService` takes a `NewMailServiceParams` called `p`, and `Record`
-takes a `RecordParams`. 
+parameter itself to one name, `params` by default and whatever `parameter_name` says otherwise.
+`NewMailService` takes a `NewMailServiceParams` called `params`, and `Record` takes a
+`RecordParams`. The `allow` list names the structs held to no function name, which is the escape
+for one named after a concept several functions share; those are still held to the parameter
+name. The alternative rule, naming the struct after the type built, reads just
+as well in isolation, which is why a repository ends up with both and no way to tell which one a
+given struct is following. A struct declared in another package is held only to the parameter
+name, since it cannot be renamed from the call site, and a struct two functions in the package
+take is held only to the parameter name as well, since a wrapper or a retrying variant can
+satisfy no name that mentions one of them. Test files are left alone.
 
 `tabletest` holds a table-driven test to one shape: the slice is `tests`, the range binds `tt`,
-and the subtest is named `tt.name`. It anchors on a slice of structs carrying a `name` field, so
-a cross-product sweep over an enum with a computed subtest name is a different shape and is left
-alone.
+and the subtest is named `tt.name`. It anchors on a slice of structs carrying a `name` field that
+the test then ranges over, so a cross-product sweep over an enum with a computed subtest name is
+a different shape and is left alone, and so is a slice of that shape the test builds as its own
+data and never drives.
 
 `testdouble` reports a type in a test file named with a `stub`, `mock` or `spy` prefix. The words
 are used interchangeably for the same shape, so a repository picks one; `fake` is the default and
@@ -69,6 +78,10 @@ forbid_nil_nil:
 params_struct:
   skip: false
   exclude: []
+  # The name every params struct is taken under.
+  parameter_name: params
+  # The structs held to no function name, still held to the parameter name.
+  allow: []
 store_verb:
   skip: false
   include:
@@ -101,7 +114,7 @@ test_double:
 As a golangci-lint plugin, name the module in `.custom-gcl.yml` and build the custom binary.
 
 Standalone, `go run github.com/harrisoncramer/fussy/cmd/fussy ./...` runs every rule the
-configuration leaves on, and a rule can be selected by name: `fussy -commentclause ./...`.
+configuration leaves on, and a rule can be selected by name: `fussy -commentlength ./...`.
 
 ## fussy unexported
 

@@ -1,5 +1,9 @@
 // Package tabletest holds a table-driven test to one shape, since four hundred tests written the
 // same way are read at a glance and the one written differently is read twice.
+//
+// A table is a slice of structs carrying a name field that the test then ranges over. The range
+// is what makes it a table: the same slice built and handed to a helper, returned from a call or
+// asserted against is the test's data rather than its cases, and is left alone.
 package tabletest
 
 import (
@@ -55,32 +59,39 @@ func NewAnalyzer(cfg config.TableTestConfig) *analysis.Analyzer {
 }
 
 func check(pass *analysis.Pass, file *ast.File) {
-	tables := map[types.Object]struct{}{}
+	tables := map[types.Object]*ast.Ident{}
 
 	ast.Inspect(file, func(node ast.Node) bool {
 		for _, ident := range declaredTable(pass, node) {
-			object := pass.TypesInfo.Defs[ident]
-			if object == nil {
-				continue
-			}
-
-			tables[object] = struct{}{}
-			if ident.Name != sliceName {
-				pass.Report(analysis.Diagnostic{
-					Pos:     ident.Pos(),
-					End:     ident.End(),
-					Message: fmt.Sprintf(misnamedSlice, ident.Name, sliceName),
-				})
+			if object := pass.TypesInfo.Defs[ident]; object != nil {
+				tables[object] = ident
 			}
 		}
 
 		return true
 	})
 
+	reported := map[*ast.Ident]bool{}
+
 	ast.Inspect(file, func(node ast.Node) bool {
 		stmt, ok := node.(*ast.RangeStmt)
-		if !ok || !rangesTable(pass, tables, stmt.X) {
+		if !ok {
 			return true
+		}
+
+		declared := rangedTable(pass, tables, stmt.X)
+		if declared == nil {
+			return true
+		}
+
+		if declared.Name != sliceName && !reported[declared] {
+			reported[declared] = true
+
+			pass.Report(analysis.Diagnostic{
+				Pos:     declared.Pos(),
+				End:     declared.End(),
+				Message: fmt.Sprintf(misnamedSlice, declared.Name, sliceName),
+			})
 		}
 
 		binding, ok := stmt.Value.(*ast.Ident)
@@ -203,15 +214,15 @@ func isTableOfCases(typ types.Type) bool {
 	return false
 }
 
-func rangesTable(pass *analysis.Pass, tables map[types.Object]struct{}, expr ast.Expr) bool {
+// rangedTable returns the declaration of the table a range is over, and nil where the range is
+// over anything else, since a slice nothing drives as a table is data rather than a table.
+func rangedTable(pass *analysis.Pass, tables map[types.Object]*ast.Ident, expr ast.Expr) *ast.Ident {
 	ident, ok := expr.(*ast.Ident)
 	if !ok {
-		return false
+		return nil
 	}
 
-	_, found := tables[pass.TypesInfo.Uses[ident]]
-
-	return found
+	return tables[pass.TypesInfo.Uses[ident]]
 }
 
 func compileExcludes(patterns []string) ([]*regexp.Regexp, error) {

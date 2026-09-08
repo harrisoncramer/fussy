@@ -24,6 +24,13 @@ func TestValidTables(t *testing.T) {
 	analysistest.Run(t, testdata, analyzer, "valid")
 }
 
+// TestUndrivenSlicesAreLeftAlone pins that a slice shaped like a table is only a table once
+// something ranges over it, so the test's own data is not held to the table's names.
+func TestUndrivenSlicesAreLeftAlone(t *testing.T) {
+	analyzer := tabletest.NewAnalyzer(config.TableTestConfig{})
+	analysistest.Run(t, testdata, analyzer, "undriven")
+}
+
 // TestExcludedFilesAreLeftAlone pins that the rule can be pointed away from a path.
 func TestExcludedFilesAreLeftAlone(t *testing.T) {
 	analyzer := tabletest.NewAnalyzer(config.TableTestConfig{Exclude: []string{`src/excluded/`}})

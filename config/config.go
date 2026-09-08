@@ -3,7 +3,6 @@
 package config
 
 type Config struct {
-	CommentClause    CommentClauseConfig    `json:"comment_clause"`
 	CommentLength    CommentLengthConfig    `json:"comment_length"`
 	CommentPrefix    CommentPrefixConfig    `json:"comment_prefix"`
 	CommentReference CommentReferenceConfig `json:"comment_reference"`
@@ -15,13 +14,6 @@ type Config struct {
 	SwitchDefault    SwitchDefaultConfig    `json:"switch_default"`
 	TableTest        TableTestConfig        `json:"table_test"`
 	TestDouble       TestDoubleConfig       `json:"test_double"`
-}
-
-type CommentClauseConfig struct {
-	Skip    bool     `json:"skip"`
-	Exclude []string `json:"exclude"`
-	// Clauses overrides the joins reported, and none leaves the built-in list in place.
-	Clauses []string `json:"clauses"`
 }
 
 type CommentReferenceConfig struct {
@@ -57,6 +49,10 @@ type ForbidNilNilConfig struct {
 type ParamsStructConfig struct {
 	Skip    bool     `json:"skip"`
 	Exclude []string `json:"exclude"`
+	// ParameterName is the name every params struct is taken under, and none means params.
+	ParameterName string `json:"parameter_name"`
+	// Allow names the params structs held to no function name, still held to the parameter name.
+	Allow []string `json:"allow"`
 }
 
 type StoreVerbConfig struct {
