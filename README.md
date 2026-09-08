@@ -23,15 +23,7 @@ either side is renamed and nothing fails when it does.
 
 `paramsstruct` holds a params struct to the name of the function that takes it, and holds the
 parameter itself to one name, `params` by default and whatever `parameter_name` says otherwise.
-`NewMailService` takes a `NewMailServiceParams` called `params`, and `Record` takes a
-`RecordParams`. The `allow` list names the structs held to no function name, which is the escape
-for one named after a concept several functions share; those are still held to the parameter
-name. The alternative rule, naming the struct after the type built, reads just
-as well in isolation, which is why a repository ends up with both and no way to tell which one a
-given struct is following. A struct declared in another package is held only to the parameter
-name, since it cannot be renamed from the call site, and a struct two functions in the package
-take is held only to the parameter name as well, since a wrapper or a retrying variant can
-satisfy no name that mentions one of them. Test files are left alone.
+`NewMailService` takes a `NewMailServiceParams` called `params`, for instance.
 
 `tabletest` holds a table-driven test to one shape: the slice is `tests`, the range binds `tt`,
 and the subtest is named `tt.name`. It anchors on a slice of structs carrying a `name` field that
@@ -127,22 +119,6 @@ dependencies as export data, so it can never see whether some other package impo
 front of it. The sweep loads every package of the module at once instead, which is why it is a
 subcommand.
 
-It draws three verdicts rather than two. An identifier only its own package uses should be
-unexported. An identifier only its own tests use is dead and should be deleted, since unexporting
-it would turn a visibly unclaimed export into a package-private function no tool will flag again.
-An identifier an external test package uses is left alone, since unexporting it would stop those
-tests compiling.
-
-A module rooted inside the one being swept is not swept with it, since `./...` resolves to the
-module at the working directory and a nested module has a build of its own. A caller there is a
-caller in another module, which is the plainest reason an identifier has to stay exported, so
-those files are read for the names they use and the module is named in the report.
-
-Methods are not reported yet, because unexporting one can break interface satisfaction silently
-and there is no implements check here to clear it. Files no build configuration compiled, such as
-a generator behind a go:build ignore tag, are read for the names they use and named in the report,
-so a caller behind a build tag does not read as an export nobody wants.
-
-Pass -json for a machine-readable result, -kinds to narrow the sweep to some of func, type, var
-and const, and -generated to include identifiers a generator wrote. The command exits 1 when it
-has findings.
+An identifier only its own package uses should be unexported. 
+An identifier only its own tests use is dead and should be deleted.
+An identifier an external test package uses is left alone.
