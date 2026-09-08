@@ -16,6 +16,8 @@ type Config struct {
 type CommentClauseConfig struct {
 	Skip    bool     `json:"skip"`
 	Exclude []string `json:"exclude"`
+	// Clauses overrides the joins reported, and none leaves the built-in list in place.
+	Clauses []string `json:"clauses"`
 }
 
 type CommentReferenceConfig struct {

@@ -44,9 +44,14 @@ func NewAnalyzer(cfg config.CommentReferenceConfig) *analysis.Analyzer {
 				return nil, compileErr
 			}
 			for _, file := range pass.Files {
+				if ast.IsGenerated(file) {
+					continue
+				}
+
 				if isExcluded(excluded, pass.Fset.File(file.Pos()).Name()) {
 					continue
 				}
+
 				documented := documentedNames(file)
 				for _, group := range file.Comments {
 					if group == file.Doc {

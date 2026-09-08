@@ -30,6 +30,18 @@ func TestExcludedFileIsNotReported(t *testing.T) {
 	analysistest.Run(t, testdata, analyzer, "excluded")
 }
 
+// TestGeneratedFileIsNotReported pins that a file a tool wrote is left alone.
+func TestGeneratedFileIsNotReported(t *testing.T) {
+	analyzer := commentclause.NewAnalyzer(config.CommentClauseConfig{})
+	analysistest.Run(t, testdata, analyzer, "generated")
+}
+
+// TestConfiguredClausesReplaceTheDefaults pins the dial a repo adopting this rule mid-life needs.
+func TestConfiguredClausesReplaceTheDefaults(t *testing.T) {
+	analyzer := commentclause.NewAnalyzer(config.CommentClauseConfig{Clauses: []string{"because"}})
+	analysistest.Run(t, testdata, analyzer, "configured")
+}
+
 // TestBadExcludePatternIsAnError pins that an exclude pattern that will not compile fails the
 // analyzer rather than silently matching nothing.
 func TestBadExcludePatternIsAnError(t *testing.T) {

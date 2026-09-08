@@ -30,6 +30,12 @@ func TestExcludedFileIsNotReported(t *testing.T) {
 	analysistest.Run(t, testdata, analyzer, "excluded")
 }
 
+// TestGeneratedFileIsNotReported pins that a file a tool wrote is left alone.
+func TestGeneratedFileIsNotReported(t *testing.T) {
+	analyzer := commentreference.NewAnalyzer(config.CommentReferenceConfig{})
+	analysistest.Run(t, testdata, analyzer, "generated")
+}
+
 // TestBadExcludePatternIsAnError pins that an exclude pattern that will not compile fails the
 // analyzer rather than silently matching nothing.
 func TestBadExcludePatternIsAnError(t *testing.T) {

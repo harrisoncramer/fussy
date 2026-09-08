@@ -6,12 +6,18 @@
 // Holding a comment to one sentence does not stop an author saying two things. It
 // pushes them to glue the second onto the first with a comma and a "since", "because", "so that"
 // or "rather than", which reads worse than the two sentences it replaced. The rule the clause is
-// breaking is that a comment says what the thing is; why it is that way belongs in the commit
-// message, where it does not have to be maintained alongside the code.
+// breaking is that a doc comment says what the thing is.
+//
+// Most of these clauses are worth nothing and should be deleted. The reasoning that is worth
+// keeping belongs where a reader will find it without being sent looking: the package comment,
+// which takes as many paragraphs as it needs, or one "Explainer:" paragraph beside the code it
+// defends. A commit message is not that place, since a reader of the file has no way to know
+// which of a thousand commits to go and read.
 package commentclause
 
 import (
 	"fmt"
+	"go/ast"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -23,12 +29,15 @@ import (
 
 const explainerPrefix = "Explainer:"
 
-var clause = regexp.MustCompile(`,\s+(since|because|so that|rather than|which is|so as to)\s`)
+// defaultClauses are the joins an author reaches for when a one-sentence rule leaves them a
+// second thing to say.
+var defaultClauses = []string{"since", "because", "so that", "rather than", "which is", "so as to"}
 
 // NewAnalyzer builds the comment-clause analyzer, which reports a comment whose sentence carries
 // a trailing justification.
 func NewAnalyzer(cfg config.CommentClauseConfig) *analysis.Analyzer {
 	excluded, compileErr := compileExcludes(cfg.Exclude)
+	clause := compileClauses(cfg.Clauses)
 
 	return &analysis.Analyzer{
 		Name: "commentclause",
@@ -38,14 +47,19 @@ func NewAnalyzer(cfg config.CommentClauseConfig) *analysis.Analyzer {
 				return nil, compileErr
 			}
 			for _, file := range pass.Files {
+				if ast.IsGenerated(file) {
+					continue
+				}
+
 				if isExcluded(excluded, pass.Fset.File(file.Pos()).Name()) {
 					continue
 				}
+
 				for _, group := range file.Comments {
 					if group == file.Doc {
 						continue
 					}
-					if message, ok := complaint(group.Text()); ok {
+					if message, ok := complaint(group.Text(), clause); ok {
 						pass.Report(analysis.Diagnostic{Pos: group.Pos(), Message: message})
 					}
 				}
@@ -56,7 +70,7 @@ func NewAnalyzer(cfg config.CommentClauseConfig) *analysis.Analyzer {
 	}
 }
 
-func complaint(text string) (string, bool) {
+func complaint(text string, clause *regexp.Regexp) (string, bool) {
 	if strings.HasPrefix(strings.TrimSpace(text), explainerPrefix) {
 		return "", false
 	}
@@ -66,7 +80,22 @@ func complaint(text string) (string, bool) {
 		return "", false
 	}
 
-	return fmt.Sprintf(`comment tacks a %q clause onto its sentence: cut everything from the comma and put the reasoning in the commit message`, found[1]), true
+	return fmt.Sprintf(`comment tacks a %q clause onto its sentence: cut everything from the comma, or move the reasoning to the package comment or an "Explainer:" paragraph if it is worth keeping`, found[1]), true
+}
+
+// compileClauses builds the pattern for the joins configured, falling back to the ones every
+// author reaches for.
+func compileClauses(clauses []string) *regexp.Regexp {
+	if len(clauses) == 0 {
+		clauses = defaultClauses
+	}
+
+	quoted := make([]string, 0, len(clauses))
+	for _, current := range clauses {
+		quoted = append(quoted, regexp.QuoteMeta(current))
+	}
+
+	return regexp.MustCompile(`,\s+(` + strings.Join(quoted, "|") + `)\s`)
 }
 
 func compileExcludes(patterns []string) ([]*regexp.Regexp, error) {

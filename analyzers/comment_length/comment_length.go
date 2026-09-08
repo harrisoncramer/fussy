@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/harrisoncramer/fussy/config"
 
@@ -23,7 +24,7 @@ import (
 const explainerPrefix = "Explainer:"
 
 const (
-	docTooLong         = "doc comment must be a single sentence: delete the second one rather than folding it into the first with a comma, and put the reasoning in the commit message"
+	docTooLong         = `doc comment must be a single sentence: delete the second one rather than folding it into the first with a comma, and if the reasoning is worth keeping put it in the package comment or an "Explainer:" paragraph`
 	commentTooLong     = `comment must be a single sentence unless the paragraph starts with "Explainer:": delete the second one rather than folding it into the first with a comma`
 	explainerOnDoc     = `"Explainer:" is for the free paragraphs that explain a file, not for a doc comment`
 	explainerOnPackage = `a package comment is godoc output, so write the paragraph without the "Explainer:" prefix`
@@ -109,11 +110,12 @@ func complaint(text string, kind commentKind, maxChars int) (string, bool) {
 
 // tooWide reports a one-sentence comment that is still too long to be saying one thing.
 func tooWide(text string, maxChars int) (string, bool) {
-	if maxChars <= 0 || len(text) <= maxChars {
+	counted := utf8.RuneCountInString(text)
+	if maxChars <= 0 || counted <= maxChars {
 		return "", false
 	}
 
-	return fmt.Sprintf("comment is %d characters against a limit of %d: say what the thing is and stop, or drop the comment", len(text), maxChars), true
+	return fmt.Sprintf("comment is %d characters against a limit of %d: say what the thing is and stop, or drop the comment", counted, maxChars), true
 }
 
 // kindOf reports what a comment group is attached to.
