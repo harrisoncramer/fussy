@@ -83,3 +83,45 @@ func TestMapOfCases(t *testing.T) {
 		})
 	}
 }
+
+type runner struct{}
+
+func (r runner) Run(in int) int {
+	return in
+}
+
+// A Run on something other than a testing.T is not the subtest being named.
+func TestRunOnAnotherType(t *testing.T) {
+	tests := []struct {
+		name string
+		in   int
+	}{{name: "one", in: 1}}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := runner{}
+			if r.Run(tt.in) != tt.in {
+				t.Fatal("mismatch")
+			}
+		})
+	}
+}
+
+// A case that splits into named sub-cases names those itself.
+func TestNestedSubtests(t *testing.T) {
+	tests := []struct {
+		name string
+		in   int
+	}{{name: "one", in: 1}}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Run("read", func(t *testing.T) {
+				_ = tt.in
+			})
+			t.Run("write", func(t *testing.T) {
+				_ = tt.in
+			})
+		})
+	}
+}

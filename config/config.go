@@ -65,6 +65,14 @@ type StoreVerbConfig struct {
 	Include []string `json:"include"`
 	// Verbs replaces the built-in list of verbs a method may open with.
 	Verbs []string `json:"verbs"`
+	// Allow names the methods held to no verb, replacing the built-in stdlib interface methods.
+	Allow []string `json:"allow"`
+}
+
+type SwitchDefaultConfig struct {
+	Skip               bool     `json:"skip"`
+	AllowSilentDefault bool     `json:"allow_silent_default"`
+	Exclude            []string `json:"exclude"`
 }
 
 type TableTestConfig struct {
@@ -79,10 +87,4 @@ type TestDoubleConfig struct {
 	Forbidden []string `json:"forbidden"`
 	// Preferred is the word the report points at, and none means fake.
 	Preferred string `json:"preferred"`
-}
-
-type SwitchDefaultConfig struct {
-	Skip               bool     `json:"skip"`
-	AllowSilentDefault bool     `json:"allow_silent_default"`
-	Exclude            []string `json:"exclude"`
 }

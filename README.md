@@ -33,7 +33,9 @@ parameter itself to `p`. `NewMailService` takes a `NewMailServiceParams` called 
 takes a `RecordParams`. The alternative rule, naming the struct after the type built, reads just
 as well in isolation, which is why a repository ends up with both and no way to tell which one a
 given struct is following. A struct declared in another package is held only to the parameter
-name, since it cannot be renamed from the call site.
+name, since it cannot be renamed from the call site, and a struct two functions in the package
+take is held only to the parameter name as well, since a wrapper or a retrying variant can
+satisfy no name that mentions one of them. Test files are left alone.
 
 `tabletest` holds a table-driven test to one shape: the slice is `tests`, the range binds `tt`,
 and the subtest is named `tt.name`. It anchors on a slice of structs carrying a `name` field, so
@@ -46,7 +48,9 @@ both halves are configurable.
 
 `storeverb` asks an exported method to open with a verb the repository has settled on. It reaches
 only the paths `include` names, and names none by default, since only a repository that has
-decided its verbs has anything for it to hold.
+decided its verbs has anything for it to hold. The `allow` list carries the method names an
+interface has already picked, such as `Scan` and `String`, which no rule of the repository's own
+can reach.
 
 ## Why the comment rules read the way they do
 
@@ -121,6 +125,9 @@ store_verb:
   # Mark, Move, Open, Prune, Record, Release, Rename, Restore, Search, Send, Set, Unmark,
   # Update and Upsert.
   verbs: []
+  # The methods held to no verb, replacing the built-in Close, Error, MarshalJSON,
+  # MarshalText, Scan, ServeHTTP, String, UnmarshalJSON, UnmarshalText and Value.
+  allow: []
 table_test:
   skip: false
   exclude: []

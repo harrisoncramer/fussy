@@ -102,12 +102,12 @@ func check(pass *analysis.Pass, file *ast.File) {
 	})
 }
 
-// checkSubtestName reports a t.Run whose first argument is not the case's own name field, which
-// is what leaves the subtest and the table row spelled the same way.
+// checkSubtestName reports the subtest of a case named from something other than the case's own
+// name field, and leaves a subtest nested inside that one to name itself however it likes.
 func checkSubtestName(pass *analysis.Pass, body *ast.BlockStmt, binding string) {
 	ast.Inspect(body, func(node ast.Node) bool {
 		call, ok := node.(*ast.CallExpr)
-		if !ok || !isRunCall(call) || len(call.Args) == 0 {
+		if !ok || !isSubtestCall(pass, call) || len(call.Args) == 0 {
 			return true
 		}
 
@@ -119,14 +119,21 @@ func checkSubtestName(pass *analysis.Pass, body *ast.BlockStmt, binding string) 
 			})
 		}
 
-		return true
+		return false
 	})
 }
 
-func isRunCall(call *ast.CallExpr) bool {
+// isSubtestCall holds the check to Run on a testing.T, so a table body calling Run on a server
+// or a harness of its own is nothing to do with the subtest's name.
+func isSubtestCall(pass *analysis.Pass, call *ast.CallExpr) bool {
 	selector, ok := call.Fun.(*ast.SelectorExpr)
+	if !ok || selector.Sel.Name != "Run" {
+		return false
+	}
 
-	return ok && selector.Sel.Name == "Run"
+	typ := pass.TypesInfo.TypeOf(selector.X)
+
+	return typ != nil && typ.String() == "*testing.T"
 }
 
 func isNameField(expr ast.Expr, binding string) bool {

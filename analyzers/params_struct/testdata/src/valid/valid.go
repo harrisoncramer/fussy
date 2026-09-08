@@ -54,3 +54,16 @@ func Anything(x Params) string {
 func UseOther(p other.NewThingParams) string {
 	return other.NewThing(p)
 }
+
+type CreateAgentParams struct {
+	Name string
+}
+
+func CreateAgent(p CreateAgentParams) string {
+	return p.Name
+}
+
+// A wrapper taking the same params can satisfy no name mentioning one of the two functions.
+func CreateAgentWithRetry(p CreateAgentParams) string {
+	return CreateAgent(p)
+}

@@ -74,11 +74,21 @@ func check(pass *analysis.Pass, file *ast.File, forbidden []string, preferred st
 		pass.Report(analysis.Diagnostic{
 			Pos:     spec.Name.Pos(),
 			End:     spec.Name.End(),
-			Message: fmt.Sprintf(message, spec.Name.Name, word, preferred, rest),
+			Message: fmt.Sprintf(message, spec.Name.Name, word, matchCase(preferred, spec.Name.Name), rest),
 		})
 
 		return true
 	})
+}
+
+// matchCase spells the preferred word the way the name it replaces opened, so the suggestion is
+// a rename rather than a different identifier.
+func matchCase(preferred, name string) string {
+	if name == "" || !unicode.IsUpper(rune(name[0])) {
+		return preferred
+	}
+
+	return string(unicode.ToUpper(rune(preferred[0]))) + preferred[1:]
 }
 
 // prefixOf returns the forbidden word a name opens with and what follows it, matching only a

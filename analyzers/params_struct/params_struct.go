@@ -41,48 +41,77 @@ func NewAnalyzer(cfg config.ParamsStructConfig) *analysis.Analyzer {
 				return nil, compileErr
 			}
 
+			var taken []parameter
 			for _, file := range pass.Files {
-				if isExcluded(excluded, pass.Fset.File(file.Pos()).Name()) {
+				path := pass.Fset.File(file.Pos()).Name()
+				if strings.HasSuffix(path, "_test.go") || isExcluded(excluded, path) {
 					continue
 				}
 
 				for _, decl := range file.Decls {
 					if fn, ok := decl.(*ast.FuncDecl); ok {
-						check(pass, fn)
+						taken = append(taken, parametersOf(pass, fn)...)
 					}
 				}
 			}
+
+			report(pass, taken)
 
 			return nil, nil
 		},
 	}
 }
 
-func check(pass *analysis.Pass, fn *ast.FuncDecl) {
+// parameter is one params struct a function takes, held until the whole package has been read.
+type parameter struct {
+	function *ast.FuncDecl
+	object   *types.TypeName
+	field    *ast.Field
+}
+
+func parametersOf(pass *analysis.Pass, fn *ast.FuncDecl) []parameter {
 	if fn.Type.Params == nil {
-		return
+		return nil
 	}
 
+	var taken []parameter
 	for _, field := range fn.Type.Params.List {
-		object := paramsTypeOf(pass, field.Type)
-		if object == nil {
-			continue
+		if object := paramsTypeOf(pass, field.Type); object != nil {
+			taken = append(taken, parameter{function: fn, object: object, field: field})
 		}
+	}
 
-		if object.Pkg() == pass.Pkg && object.Name() != fn.Name.Name+suffix {
+	return taken
+}
+
+// report holds the type name only where one function takes the struct, leaving a wrapper and the
+// function it forwards to sharing one.
+func report(pass *analysis.Pass, taken []parameter) {
+	functions := map[*types.TypeName]map[*ast.FuncDecl]bool{}
+	for _, p := range taken {
+		if functions[p.object] == nil {
+			functions[p.object] = map[*ast.FuncDecl]bool{}
+		}
+		functions[p.object][p.function] = true
+	}
+
+	for _, p := range taken {
+		name := p.function.Name.Name
+		sole := len(functions[p.object]) == 1
+		if sole && p.object.Pkg() == pass.Pkg && p.object.Name() != name+suffix {
 			pass.Report(analysis.Diagnostic{
-				Pos:     field.Type.Pos(),
-				End:     field.Type.End(),
-				Message: fmt.Sprintf(misnamedType, fn.Name.Name, object.Name(), fn.Name.Name, suffix),
+				Pos:     p.field.Type.Pos(),
+				End:     p.field.Type.End(),
+				Message: fmt.Sprintf(misnamedType, name, p.object.Name(), name, suffix),
 			})
 		}
 
-		for _, name := range field.Names {
-			if name.Name != parameterName && name.Name != "_" {
+		for _, ident := range p.field.Names {
+			if ident.Name != parameterName && ident.Name != "_" {
 				pass.Report(analysis.Diagnostic{
-					Pos:     name.Pos(),
-					End:     name.End(),
-					Message: fmt.Sprintf(misnamedArg, object.Name(), name.Name, parameterName),
+					Pos:     ident.Pos(),
+					End:     ident.End(),
+					Message: fmt.Sprintf(misnamedArg, p.object.Name(), ident.Name, parameterName),
 				})
 			}
 		}

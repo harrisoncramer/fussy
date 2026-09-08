@@ -8,6 +8,7 @@ import (
 	"go/ast"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"unicode"
 
@@ -23,7 +24,13 @@ var defaultVerbs = []string{
 	"Release", "Rename", "Restore", "Search", "Send", "Set", "Unmark", "Update", "Upsert",
 }
 
-const message = "%s does not open with a verb, so name it after what it does: %s"
+// defaultAllowed is the method names the interfaces a store satisfies have already picked.
+var defaultAllowed = []string{
+	"Close", "Error", "MarshalJSON", "MarshalText", "Scan", "ServeHTTP", "String",
+	"UnmarshalJSON", "UnmarshalText", "Value",
+}
+
+const message = "%s does not open with one of the store's verbs, so name it after what it does"
 
 // NewAnalyzer builds the store-verb analyzer, which reports an exported method whose name does
 // not open with a configured verb, and which reaches nothing until it is pointed at a path.
@@ -32,6 +39,11 @@ func NewAnalyzer(cfg config.StoreVerbConfig) *analysis.Analyzer {
 	verbs := cfg.Verbs
 	if len(verbs) == 0 {
 		verbs = defaultVerbs
+	}
+
+	allowed := cfg.Allow
+	if len(allowed) == 0 {
+		allowed = defaultAllowed
 	}
 
 	return &analysis.Analyzer{
@@ -52,7 +64,7 @@ func NewAnalyzer(cfg config.StoreVerbConfig) *analysis.Analyzer {
 					continue
 				}
 
-				check(pass, file, verbs)
+				check(pass, file, verbs, allowed)
 			}
 
 			return nil, nil
@@ -60,17 +72,21 @@ func NewAnalyzer(cfg config.StoreVerbConfig) *analysis.Analyzer {
 	}
 }
 
-func check(pass *analysis.Pass, file *ast.File, verbs []string) {
+func check(pass *analysis.Pass, file *ast.File, verbs, allowed []string) {
 	for _, decl := range file.Decls {
 		fn, ok := decl.(*ast.FuncDecl)
-		if !ok || fn.Recv == nil || !fn.Name.IsExported() || opensWithVerb(fn.Name.Name, verbs) {
+		if !ok || fn.Recv == nil || !fn.Name.IsExported() {
+			continue
+		}
+
+		if opensWithVerb(fn.Name.Name, verbs) || slices.Contains(allowed, fn.Name.Name) {
 			continue
 		}
 
 		pass.Report(analysis.Diagnostic{
 			Pos:     fn.Name.Pos(),
 			End:     fn.Name.End(),
-			Message: fmt.Sprintf(message, fn.Name.Name, strings.Join(verbs, ", ")),
+			Message: fmt.Sprintf(message, fn.Name.Name),
 		})
 	}
 }

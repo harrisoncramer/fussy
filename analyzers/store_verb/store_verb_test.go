@@ -47,3 +47,13 @@ func TestBadIncludePatternIsAnError(t *testing.T) {
 		t.Fatal("expected a bad include pattern to fail the analyzer")
 	}
 }
+
+// TestConfiguredAllowList pins that a repository's own allow list replaces the built-in one, so
+// a method the stdlib named is only exempt while it is named.
+func TestConfiguredAllowList(t *testing.T) {
+	analyzer := storeverb.NewAnalyzer(config.StoreVerbConfig{
+		Include: []string{`src/allowed/`},
+		Allow:   []string{"Rows"},
+	})
+	analysistest.Run(t, testdata, analyzer, "allowed")
+}
