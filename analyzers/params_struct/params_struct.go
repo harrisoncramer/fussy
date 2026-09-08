@@ -19,9 +19,9 @@ import (
 // suffix is the ending that marks a struct as the parameters of one function.
 const suffix = "Params"
 
-// parameterName is the name every params struct is taken under, so a call site reads the same
-// way wherever it is.
-const parameterName = "p"
+// defaultParameterName is the name every params struct is taken under, so a call site reads the
+// same way wherever it is.
+const defaultParameterName = "params"
 
 const (
 	misnamedType = "%s takes %s, so name the struct %s%s after the function that takes it"
@@ -29,13 +29,22 @@ const (
 )
 
 // NewAnalyzer builds the params-struct analyzer, which reports a params struct named after
-// anything but the function taking it, and a params parameter called anything but p.
+// anything but the function taking it, and a params parameter called anything but the configured
+// name.
 func NewAnalyzer(cfg config.ParamsStructConfig) *analysis.Analyzer {
 	excluded, compileErr := compileExcludes(cfg.Exclude)
+	name := cfg.ParameterName
+	if name == "" {
+		name = defaultParameterName
+	}
+	allowed := make(map[string]bool, len(cfg.Allow))
+	for _, structure := range cfg.Allow {
+		allowed[structure] = true
+	}
 
 	return &analysis.Analyzer{
 		Name: "paramsstruct",
-		Doc:  "Checks that a params struct is named after the function taking it and is taken as p",
+		Doc:  "Checks that a params struct is named after the function taking it and is taken under one name",
 		Run: func(pass *analysis.Pass) (any, error) {
 			if compileErr != nil {
 				return nil, compileErr
@@ -55,7 +64,7 @@ func NewAnalyzer(cfg config.ParamsStructConfig) *analysis.Analyzer {
 				}
 			}
 
-			report(pass, taken)
+			report(pass, taken, name, allowed)
 
 			return nil, nil
 		},
@@ -86,7 +95,7 @@ func parametersOf(pass *analysis.Pass, fn *ast.FuncDecl) []parameter {
 
 // report holds the type name only where one function takes the struct, leaving a wrapper and the
 // function it forwards to sharing one.
-func report(pass *analysis.Pass, taken []parameter) {
+func report(pass *analysis.Pass, taken []parameter, name string, allowed map[string]bool) {
 	functions := map[*types.TypeName]map[*ast.FuncDecl]bool{}
 	for _, p := range taken {
 		if functions[p.object] == nil {
@@ -96,22 +105,22 @@ func report(pass *analysis.Pass, taken []parameter) {
 	}
 
 	for _, p := range taken {
-		name := p.function.Name.Name
 		sole := len(functions[p.object]) == 1
-		if sole && p.object.Pkg() == pass.Pkg && p.object.Name() != name+suffix {
+		named := p.function.Name.Name + suffix
+		if sole && p.object.Pkg() == pass.Pkg && !allowed[p.object.Name()] && p.object.Name() != named {
 			pass.Report(analysis.Diagnostic{
 				Pos:     p.field.Type.Pos(),
 				End:     p.field.Type.End(),
-				Message: fmt.Sprintf(misnamedType, name, p.object.Name(), name, suffix),
+				Message: fmt.Sprintf(misnamedType, p.function.Name.Name, p.object.Name(), p.function.Name.Name, suffix),
 			})
 		}
 
 		for _, ident := range p.field.Names {
-			if ident.Name != parameterName && ident.Name != "_" {
+			if ident.Name != name && ident.Name != "_" {
 				pass.Report(analysis.Diagnostic{
 					Pos:     ident.Pos(),
 					End:     ident.End(),
-					Message: fmt.Sprintf(misnamedArg, p.object.Name(), ident.Name, parameterName),
+					Message: fmt.Sprintf(misnamedArg, p.object.Name(), ident.Name, name),
 				})
 			}
 		}

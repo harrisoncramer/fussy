@@ -49,6 +49,10 @@ type ForbidNilNilConfig struct {
 type ParamsStructConfig struct {
 	Skip    bool     `json:"skip"`
 	Exclude []string `json:"exclude"`
+	// ParameterName is the name every params struct is taken under, and none means params.
+	ParameterName string `json:"parameter_name"`
+	// Allow names the params structs held to no function name, still held to the parameter name.
+	Allow []string `json:"allow"`
 }
 
 type StoreVerbConfig struct {
