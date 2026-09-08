@@ -16,9 +16,7 @@ func LoadFromEnv() (Config, error) {
 	return load(os.Getenv(envVar))
 }
 
-// defaults is the configuration a run with no config file uses, which holds to the four rules
-// that say something about any Go package and leaves off the two that assume a repository's
-// own shape.
+// defaults is the configuration a run with no config file uses.
 func defaults() Config {
 	return Config{
 		ContextTimeout: ContextTimeoutConfig{Skip: true},

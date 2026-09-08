@@ -87,8 +87,7 @@ func check(pass *analysis.Pass, file *ast.File) {
 	})
 }
 
-// reportUnnamedTimeout flags a duration written where the call is, since a constant beside the
-// others is what makes the timeouts of a package readable together.
+// reportUnnamedTimeout flags a duration written where the call is rather than as a constant.
 func reportUnnamedTimeout(pass *analysis.Pass, arg ast.Expr) {
 	switch expr := arg.(type) {
 	case *ast.Ident:

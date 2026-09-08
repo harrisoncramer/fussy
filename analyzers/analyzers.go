@@ -5,8 +5,10 @@ package analyzers
 import (
 	"go/ast"
 
+	commentclause "github.com/harrisoncramer/fussy/analyzers/comment_clause"
 	commentlength "github.com/harrisoncramer/fussy/analyzers/comment_length"
 	commentprefix "github.com/harrisoncramer/fussy/analyzers/comment_prefix"
+	commentreference "github.com/harrisoncramer/fussy/analyzers/comment_reference"
 	contexttimeout "github.com/harrisoncramer/fussy/analyzers/context_timeout"
 	forbidgetenv "github.com/harrisoncramer/fussy/analyzers/forbidgetenv"
 	forbidnilnil "github.com/harrisoncramer/fussy/analyzers/forbidnilnil"
@@ -20,12 +22,20 @@ import (
 func BuildAll(cfg config.Config) []*analysis.Analyzer {
 	var built []*analysis.Analyzer
 
+	if !cfg.CommentClause.Skip {
+		built = append(built, commentclause.NewAnalyzer(cfg.CommentClause))
+	}
+
 	if !cfg.CommentLength.Skip {
 		built = append(built, commentlength.NewAnalyzer(cfg.CommentLength))
 	}
 
 	if !cfg.CommentPrefix.Skip {
 		built = append(built, commentprefix.NewAnalyzer(cfg.CommentPrefix))
+	}
+
+	if !cfg.CommentReference.Skip {
+		built = append(built, commentreference.NewAnalyzer(cfg.CommentReference))
 	}
 
 	if !cfg.ContextTimeout.Skip {

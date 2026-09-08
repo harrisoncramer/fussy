@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/harrisoncramer/fussy/config"
 
@@ -23,8 +24,8 @@ import (
 const explainerPrefix = "Explainer:"
 
 const (
-	docTooLong         = "doc comment must be a single sentence"
-	commentTooLong     = `comment must be a single sentence unless the paragraph starts with "Explainer:"`
+	docTooLong         = `doc comment must be a single sentence: delete the second one rather than folding it into the first with a comma, and if the reasoning is worth keeping put it in the package comment or an "Explainer:" paragraph`
+	commentTooLong     = `comment must be a single sentence unless the paragraph starts with "Explainer:": delete the second one rather than folding it into the first with a comma`
 	explainerOnDoc     = `"Explainer:" is for the free paragraphs that explain a file, not for a doc comment`
 	explainerOnPackage = `a package comment is godoc output, so write the paragraph without the "Explainer:" prefix`
 )
@@ -57,7 +58,7 @@ func NewAnalyzer(cfg config.CommentLengthConfig) *analysis.Analyzer {
 				}
 				docs := declarationDocs(file)
 				for _, group := range file.Comments {
-					if message, ok := complaint(group.Text(), kindOf(group, file, docs)); ok {
+					if message, ok := complaint(group.Text(), kindOf(group, file, docs), cfg.MaxChars); ok {
 						pass.Report(analysis.Diagnostic{Pos: group.Pos(), Message: message})
 					}
 				}
@@ -67,7 +68,7 @@ func NewAnalyzer(cfg config.CommentLengthConfig) *analysis.Analyzer {
 	}
 }
 
-func complaint(text string, kind commentKind) (string, bool) {
+func complaint(text string, kind commentKind, maxChars int) (string, bool) {
 	paragraphs := paragraphsOf(text)
 
 	switch kind {
@@ -89,7 +90,7 @@ func complaint(text string, kind commentKind) (string, bool) {
 			return docTooLong, true
 		}
 
-		return "", false
+		return tooWide(strings.Join(paragraphs, " "), maxChars)
 	case freeComment:
 		var counted []string
 		for _, paragraph := range paragraphs {
@@ -101,14 +102,23 @@ func complaint(text string, kind commentKind) (string, bool) {
 			return commentTooLong, true
 		}
 
-		return "", false
+		return tooWide(strings.Join(counted, " "), maxChars)
 	}
 
 	return "", false
 }
 
-// kindOf reports what a comment group is attached to, since the package comment is the one
-// place in a file that is meant to run long.
+// tooWide reports a one-sentence comment that is still too long to be saying one thing.
+func tooWide(text string, maxChars int) (string, bool) {
+	counted := utf8.RuneCountInString(text)
+	if maxChars <= 0 || counted <= maxChars {
+		return "", false
+	}
+
+	return fmt.Sprintf("comment is %d characters against a limit of %d: say what the thing is and stop, or drop the comment", counted, maxChars), true
+}
+
+// kindOf reports what a comment group is attached to.
 func kindOf(group *ast.CommentGroup, file *ast.File, docs map[*ast.CommentGroup]bool) commentKind {
 	switch {
 	case group == file.Doc:
