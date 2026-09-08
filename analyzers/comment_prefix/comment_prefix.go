@@ -78,8 +78,7 @@ func isChecked(fn *ast.FuncDecl, isTest bool) bool {
 	return true
 }
 
-// isRequired reports whether a missing doc comment is a finding, which a method on an
-// unexported type is not, since it is not part of what the package offers.
+// isRequired reports whether a missing doc comment is a finding.
 func isRequired(fn *ast.FuncDecl, isTest bool) bool {
 	if isTest || fn.Recv == nil {
 		return true

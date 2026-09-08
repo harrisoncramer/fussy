@@ -84,8 +84,7 @@ func checkBody(pass *analysis.Pass, signature *types.Signature, body *ast.BlockS
 	})
 }
 
-// returnsNilablePointerWithError holds the rule to pointers, where nil carries no meaning of its
-// own, rather than to a nil map or slice that already reads as empty.
+// returnsNilablePointerWithError holds the rule to pointers rather than to maps and slices.
 func returnsNilablePointerWithError(signature *types.Signature) bool {
 	if signature == nil {
 		return false

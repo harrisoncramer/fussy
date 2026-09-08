@@ -18,8 +18,7 @@ func TestPanelContextsNeedANamedTimeout(t *testing.T) {
 	analysistest.Run(t, testdata, analyzer, "panel")
 }
 
-// TestFilesOutsideTheIncludeAreLeftAlone pins that the rule reaches only the paths it names,
-// since a background context is the right answer nearly everywhere else.
+// TestFilesOutsideTheIncludeAreLeftAlone pins that the rule reaches only the paths it names.
 func TestFilesOutsideTheIncludeAreLeftAlone(t *testing.T) {
 	analyzer := contexttimeout.NewAnalyzer(config.ContextTimeoutConfig{Include: []string{`src/panel/`}})
 	analysistest.Run(t, testdata, analyzer, "elsewhere")
