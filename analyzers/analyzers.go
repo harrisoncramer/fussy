@@ -12,7 +12,11 @@ import (
 	contexttimeout "github.com/harrisoncramer/fussy/analyzers/context_timeout"
 	forbidgetenv "github.com/harrisoncramer/fussy/analyzers/forbidgetenv"
 	forbidnilnil "github.com/harrisoncramer/fussy/analyzers/forbidnilnil"
+	paramsstruct "github.com/harrisoncramer/fussy/analyzers/params_struct"
+	storeverb "github.com/harrisoncramer/fussy/analyzers/store_verb"
 	switchdefault "github.com/harrisoncramer/fussy/analyzers/switch_default"
+	tabletest "github.com/harrisoncramer/fussy/analyzers/table_test"
+	testdouble "github.com/harrisoncramer/fussy/analyzers/test_double"
 	"github.com/harrisoncramer/fussy/config"
 
 	"golang.org/x/tools/go/analysis"
@@ -50,8 +54,24 @@ func BuildAll(cfg config.Config) []*analysis.Analyzer {
 		built = append(built, forbidnilnil.NewAnalyzer(cfg.ForbidNilNil))
 	}
 
+	if !cfg.ParamsStruct.Skip {
+		built = append(built, paramsstruct.NewAnalyzer(cfg.ParamsStruct))
+	}
+
+	if !cfg.StoreVerb.Skip {
+		built = append(built, storeverb.NewAnalyzer(cfg.StoreVerb))
+	}
+
 	if !cfg.SwitchDefault.Skip {
 		built = append(built, switchdefault.NewAnalyzer(cfg.SwitchDefault))
+	}
+
+	if !cfg.TableTest.Skip {
+		built = append(built, tabletest.NewAnalyzer(cfg.TableTest))
+	}
+
+	if !cfg.TestDouble.Skip {
+		built = append(built, testdouble.NewAnalyzer(cfg.TestDouble))
 	}
 
 	for _, a := range built {

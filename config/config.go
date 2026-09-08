@@ -10,7 +10,11 @@ type Config struct {
 	ContextTimeout   ContextTimeoutConfig   `json:"context_timeout"`
 	ForbidGetenv     ForbidGetenvConfig     `json:"forbid_getenv"`
 	ForbidNilNil     ForbidNilNilConfig     `json:"forbid_nil_nil"`
+	ParamsStruct     ParamsStructConfig     `json:"params_struct"`
+	StoreVerb        StoreVerbConfig        `json:"store_verb"`
 	SwitchDefault    SwitchDefaultConfig    `json:"switch_default"`
+	TableTest        TableTestConfig        `json:"table_test"`
+	TestDouble       TestDoubleConfig       `json:"test_double"`
 }
 
 type CommentClauseConfig struct {
@@ -48,6 +52,33 @@ type ForbidGetenvConfig struct {
 
 type ForbidNilNilConfig struct {
 	Skip bool `json:"skip"`
+}
+
+type ParamsStructConfig struct {
+	Skip    bool     `json:"skip"`
+	Exclude []string `json:"exclude"`
+}
+
+type StoreVerbConfig struct {
+	Skip bool `json:"skip"`
+	// Include names the paths the rule reaches, and none leaves it switched off.
+	Include []string `json:"include"`
+	// Verbs replaces the built-in list of verbs a method may open with.
+	Verbs []string `json:"verbs"`
+}
+
+type TableTestConfig struct {
+	Skip    bool     `json:"skip"`
+	Exclude []string `json:"exclude"`
+}
+
+type TestDoubleConfig struct {
+	Skip    bool     `json:"skip"`
+	Exclude []string `json:"exclude"`
+	// Forbidden replaces the built-in stub, mock and spy prefixes.
+	Forbidden []string `json:"forbidden"`
+	// Preferred is the word the report points at, and none means fake.
+	Preferred string `json:"preferred"`
 }
 
 type SwitchDefaultConfig struct {

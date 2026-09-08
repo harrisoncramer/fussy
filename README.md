@@ -1,7 +1,8 @@
 # fussy
 
 A golangci-lint plugin, and a standalone binary, holding a repository to a handful of rules that
-a general-purpose linter has no opinion about. Most of them are about comments.
+a general-purpose linter has no opinion about. Several of them are about comments, and the rest
+are naming conventions a repository has settled on and wants held.
 
 ## The rules
 
@@ -26,6 +27,26 @@ documents. Nothing else is required to carry a comment.
 `forbidnilnil` forbids returning a nil pointer with a nil error.
 
 `contexttimeout` asks the paths it is pointed at to bound the contexts they start.
+
+`paramsstruct` holds a params struct to the name of the function that takes it, and holds the
+parameter itself to `p`. `NewMailService` takes a `NewMailServiceParams` called `p`, and `Record`
+takes a `RecordParams`. The alternative rule, naming the struct after the type built, reads just
+as well in isolation, which is why a repository ends up with both and no way to tell which one a
+given struct is following. A struct declared in another package is held only to the parameter
+name, since it cannot be renamed from the call site.
+
+`tabletest` holds a table-driven test to one shape: the slice is `tests`, the range binds `tt`,
+and the subtest is named `tt.name`. It anchors on a slice of structs carrying a `name` field, so
+a cross-product sweep over an enum with a computed subtest name is a different shape and is left
+alone.
+
+`testdouble` reports a type in a test file named with a `stub`, `mock` or `spy` prefix. The words
+are used interchangeably for the same shape, so a repository picks one; `fake` is the default and
+both halves are configurable.
+
+`storeverb` asks an exported method to open with a verb the repository has settled on. It reaches
+only the paths `include` names, and names none by default, since only a repository that has
+decided its verbs has anything for it to hold.
 
 ## Why the comment rules read the way they do
 
@@ -87,6 +108,32 @@ forbid_getenv:
   skip: false
 forbid_nil_nil:
   skip: false
+params_struct:
+  skip: false
+  exclude: []
+store_verb:
+  skip: false
+  # The paths the rule reaches. None leaves it switched off.
+  include:
+    - internal/store/
+  # The verbs a method may open with, replacing the built-in list of Abandon, Archive,
+  # Begin, Claim, Clear, Count, Create, Delete, Exists, Finish, Forget, Get, Lock, List,
+  # Mark, Move, Open, Prune, Record, Release, Rename, Restore, Search, Send, Set, Unmark,
+  # Update and Upsert.
+  verbs: []
+table_test:
+  skip: false
+  exclude: []
+test_double:
+  skip: false
+  exclude: []
+  # The prefixes reported, replacing the built-in stub, mock and spy.
+  forbidden:
+    - stub
+    - mock
+    - spy
+  # The word the report points at.
+  preferred: fake
 ```
 
 Every `exclude` and `include` is an unanchored regular expression over the file path. Generated
