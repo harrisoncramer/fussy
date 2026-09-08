@@ -10,10 +10,6 @@ are naming conventions a repository has settled on and wants held.
 to, and a free paragraph inside a file may run long behind an `Explainer:` prefix. Set
 `max_chars` to cap the sentence as well.
 
-`commentclause` reports the trailing justification clause. A one-sentence rule does not stop an
-author saying two things; it pushes them to glue the second onto the first with a comma and a
-"since", "because", "so that" or "rather than". Package comments are exempt.
-
 `commentreference` reports a comment naming a test or another file. The name rots the moment
 either side is renamed and nothing fails when it does, and a reader who has to open a second file
 to finish reading a line has been sent away by the thing meant to save them the trip. A doc
@@ -68,8 +64,7 @@ Most declarations want no comment at all. A name that already says what the thin
 left for a comment to add, and one written anyway fills up with reasoning to justify existing.
 
 When `commentlength` rejects a second sentence, delete it. Folding it into the first with a comma
-satisfies the rule and produces a worse sentence than the two it replaced, which is what
-`commentclause` is for.
+satisfies the rule and produces a worse sentence than the two it replaced.
 
 Files a tool wrote are skipped by every comment rule, since a generated header is not an author's
 comment to fix.
@@ -81,18 +76,6 @@ plugin's `settings`; standalone it is a YAML file the `FUSSY_CONFIG` environment
 at.
 
 ```yaml
-comment_clause:
-  skip: false
-  exclude:
-    - config/appconfig\.go$
-  # The joins reported, replacing the built-in list of since, because, so that,
-  # rather than, which is, and so as to. A codebase adopting the rule mid-life
-  # will want to start with the unambiguous ones and add the rest later.
-  clauses:
-    - since
-    - because
-    - so that
-    - rather than
 comment_length:
   skip: false
   max_chars: 0
@@ -151,7 +134,7 @@ files are skipped by every rule.
 As a golangci-lint plugin, name the module in `.custom-gcl.yml` and build the custom binary.
 
 Standalone, `go run github.com/harrisoncramer/fussy/cmd/fussy ./...` runs every rule the
-configuration leaves on, and a rule can be selected by name: `fussy -commentclause ./...`.
+configuration leaves on, and a rule can be selected by name: `fussy -commentlength ./...`.
 
 ## fussy unexported
 

@@ -5,7 +5,6 @@ package analyzers
 import (
 	"go/ast"
 
-	commentclause "github.com/harrisoncramer/fussy/analyzers/comment_clause"
 	commentlength "github.com/harrisoncramer/fussy/analyzers/comment_length"
 	commentprefix "github.com/harrisoncramer/fussy/analyzers/comment_prefix"
 	commentreference "github.com/harrisoncramer/fussy/analyzers/comment_reference"
@@ -25,10 +24,6 @@ import (
 // BuildAll returns every analyzer the configuration leaves switched on.
 func BuildAll(cfg config.Config) []*analysis.Analyzer {
 	var built []*analysis.Analyzer
-
-	if !cfg.CommentClause.Skip {
-		built = append(built, commentclause.NewAnalyzer(cfg.CommentClause))
-	}
 
 	if !cfg.CommentLength.Skip {
 		built = append(built, commentlength.NewAnalyzer(cfg.CommentLength))
