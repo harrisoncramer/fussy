@@ -2,7 +2,7 @@
 
 A golangci-lint plugin, and a standalone binary, holding a repository to a handful of rules that
 a general-purpose linter has no opinion about. Several of them are about comments, and the rest
-are naming conventions a repository has settled on and wants held.
+are naming conventions and other "fussy" fixes designed to enforce strict patterns for Go agents.
 
 ## The rules
 
@@ -10,17 +10,10 @@ are naming conventions a repository has settled on and wants held.
 to, and a free paragraph inside a file may run long behind an `Explainer:` prefix. Set
 `max_chars` to cap the sentence as well.
 
-`commentclause` reports the trailing justification clause. A one-sentence rule does not stop an
-author saying two things; it pushes them to glue the second onto the first with a comma and a
-"since", "because", "so that" or "rather than". Package comments are exempt.
-
 `commentreference` reports a comment naming a test or another file. The name rots the moment
-either side is renamed and nothing fails when it does, and a reader who has to open a second file
-to finish reading a line has been sent away by the thing meant to save them the trip. A doc
-comment naming the identifier it documents is fine, and so is `pkg.go.dev`.
+either side is renamed and nothing fails when it does.
 
-`commentprefix` requires an exported function's doc comment to begin with the identifier it
-documents. Nothing else is required to carry a comment.
+`commentprefix` requires an exported function's doc comment to begin with the identifier it documents.
 
 `forbidgetenv` forbids reading the environment outside the package that loads configuration.
 
@@ -30,12 +23,7 @@ documents. Nothing else is required to carry a comment.
 
 `paramsstruct` holds a params struct to the name of the function that takes it, and holds the
 parameter itself to `p`. `NewMailService` takes a `NewMailServiceParams` called `p`, and `Record`
-takes a `RecordParams`. The alternative rule, naming the struct after the type built, reads just
-as well in isolation, which is why a repository ends up with both and no way to tell which one a
-given struct is following. A struct declared in another package is held only to the parameter
-name, since it cannot be renamed from the call site, and a struct two functions in the package
-take is held only to the parameter name as well, since a wrapper or a retrying variant can
-satisfy no name that mentions one of them. Test files are left alone.
+takes a `RecordParams`. 
 
 `tabletest` holds a table-driven test to one shape: the slice is `tests`, the range binds `tt`,
 and the subtest is named `tt.name`. It anchors on a slice of structs carrying a `name` field, so
@@ -52,28 +40,6 @@ decided its verbs has anything for it to hold. The `allow` list carries the meth
 interface has already picked, such as `Scan` and `String`, which no rule of the repository's own
 can reach.
 
-## Why the comment rules read the way they do
-
-A comment says what the thing is. Most of the reasoning an author reaches for is worth nothing
-and should be deleted outright. The reasoning that is genuinely load-bearing goes where a reader
-finds it without being sent looking: the package comment, which may run as long as it needs, or
-one `Explainer:` paragraph beside the code it defends. There are a handful of those in a healthy
-repository, not one per function.
-
-A commit message is not that place. It describes a delta, and is read by someone who already
-knows which delta they care about; a reader who opens the file has no way to know which of a
-thousand commits explains the shape they are looking at.
-
-Most declarations want no comment at all. A name that already says what the thing is has nothing
-left for a comment to add, and one written anyway fills up with reasoning to justify existing.
-
-When `commentlength` rejects a second sentence, delete it. Folding it into the first with a comma
-satisfies the rule and produces a worse sentence than the two it replaced, which is what
-`commentclause` is for.
-
-Files a tool wrote are skipped by every comment rule, since a generated header is not an author's
-comment to fix.
-
 ## Configuration
 
 Both the plugin and the binary take the same settings block. Under golangci-lint it is the
@@ -81,18 +47,6 @@ plugin's `settings`; standalone it is a YAML file the `FUSSY_CONFIG` environment
 at.
 
 ```yaml
-comment_clause:
-  skip: false
-  exclude:
-    - config/appconfig\.go$
-  # The joins reported, replacing the built-in list of since, because, so that,
-  # rather than, which is, and so as to. A codebase adopting the rule mid-life
-  # will want to start with the unambiguous ones and add the rest later.
-  clauses:
-    - since
-    - because
-    - so that
-    - rather than
 comment_length:
   skip: false
   max_chars: 0
@@ -117,7 +71,6 @@ params_struct:
   exclude: []
 store_verb:
   skip: false
-  # The paths the rule reaches. None leaves it switched off.
   include:
     - internal/store/
   # The verbs a method may open with, replacing the built-in list of Abandon, Archive,
@@ -142,9 +95,6 @@ test_double:
   # The word the report points at.
   preferred: fake
 ```
-
-Every `exclude` and `include` is an unanchored regular expression over the file path. Generated
-files are skipped by every rule.
 
 ## Running it
 
