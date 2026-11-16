@@ -1,19 +1,10 @@
 # fussy
 
 A golangci-lint plugin, and a standalone binary, holding a repository to a handful of rules that
-a general-purpose linter has no opinion about. Several of them are about comments, and the rest
-are naming conventions and other "fussy" fixes designed to enforce strict patterns for Go agents.
+a general-purpose linter has no opinion about. They are naming conventions and other "fussy"
+fixes designed to enforce strict patterns for Go agents.
 
 ## The rules
-
-`commentlength` holds a comment to one sentence. A package comment may run as long as it needs
-to, and a free paragraph inside a file may run long behind an `Explainer:` prefix. Set
-`max_chars` to cap the sentence as well.
-
-`commentreference` reports a comment naming a test or another file. The name rots the moment
-either side is renamed and nothing fails when it does.
-
-`commentprefix` requires an exported function's doc comment to begin with the identifier it documents.
 
 `forbidgetenv` forbids reading the environment outside the package that loads configuration.
 
@@ -48,17 +39,6 @@ plugin's `settings`; standalone it is a YAML file the `FUSSY_CONFIG` environment
 at.
 
 ```yaml
-comment_length:
-  skip: false
-  max_chars: 0
-  exclude:
-    - config/appconfig\.go$
-comment_prefix:
-  skip: false
-  require: true
-comment_reference:
-  skip: false
-  exclude: []
 context_timeout:
   skip: false
   include:
@@ -106,7 +86,7 @@ test_double:
 As a golangci-lint plugin, name the module in `.custom-gcl.yml` and build the custom binary.
 
 Standalone, `go run github.com/harrisoncramer/fussy/cmd/fussy ./...` runs every rule the
-configuration leaves on, and a rule can be selected by name: `fussy -commentlength ./...`.
+configuration leaves on, and a rule can be selected by name: `fussy -tabletest ./...`.
 
 ## fussy unexported
 

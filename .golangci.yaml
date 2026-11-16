@@ -20,11 +20,6 @@ linters:
         type: module
         description: The analyzers this module ships, run against the module itself.
         settings:
-          comment_length:
-            skip: false
-          comment_prefix:
-            skip: false
-            require: true
           forbid_getenv:
             skip: false
           forbid_nil_nil:
